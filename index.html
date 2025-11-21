@@ -74,11 +74,19 @@
       var isLogged = (sessionStorage.getItem('loggedIn') === 'true') || (localStorage.getItem('rw_user_auth') === '1');
       var params = new URLSearchParams(window.location.search || '');
       var hasLoginError = params.get('error') === 'login_required';
+      var path = window.location.pathname || '/';
+
+      // Se já estiver logado e estiver na página de login, volta para a raiz
+      if (isLogged && (path.endsWith('/index.html') || hasLoginError)) {
+        var hashBack = window.location.hash || '';
+        window.location.replace('/' + hashBack);
+        return;
+      }
+
       if (!isLogged && !hasLoginError) {
-        // Redireciona para a mesma origem com sinalizador de erro de login
-        var base = window.location.pathname || '/index.html';
+        // Redireciona explicitamente para /index.html com sinalizador de erro
         var hash = window.location.hash || '';
-        window.location.replace(base + '?error=login_required' + hash);
+        window.location.replace('/index.html?error=login_required' + hash);
       } else if (!isLogged && hasLoginError) {
         // Exibe um overlay de login bloqueando o app até autenticar
         var overlay = document.createElement('div');
@@ -168,11 +176,10 @@
             sessionStorage.setItem('loggedIn', 'true');
             localStorage.setItem('rw_user_auth', '1');
           } catch (e) {}
-          // Remove overlay e recarrega sem o parâmetro de erro
-          var base = window.location.pathname || '/index.html';
+          // Remove overlay e volta para a raiz (home) sem o parâmetro de erro
           var hash = window.location.hash || '';
           overlay.remove();
-          window.location.replace(base + hash);
+          window.location.replace('/' + hash);
         };
 
         actions.appendChild(cancelBtn);
