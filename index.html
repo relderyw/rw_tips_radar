@@ -71,8 +71,33 @@
   // Check de login o mais cedo possível (antes de carregar o app)
   (function() {
     try {
-      var isLogged = (sessionStorage.getItem('loggedIn') === 'true') || (localStorage.getItem('rw_user_auth') === '1');
       var params = new URLSearchParams(window.location.search || '');
+      // Suporte para login via parâmetros (auth/expiry) vindos de outras páginas
+      var authParam = params.get('auth');
+      var expiryParam = params.get('expiry');
+
+      // Se recebemos auth/expiry, validar e salvar antes de checar isLogged
+      if (authParam && expiryParam) {
+        var expiryMs = Number(expiryParam);
+        if (!Number.isNaN(expiryMs) && expiryMs > Date.now()) {
+          try {
+            localStorage.setItem('authToken', authParam);
+            localStorage.setItem('tokenExpiry', String(expiryMs));
+            // Unificar estado de login utilizado pelo site
+            sessionStorage.setItem('loggedIn', 'true');
+            localStorage.setItem('rw_user_auth', '1');
+          } catch (e) {
+            console.warn('Falha ao persistir auth/expiry no storage:', e);
+          }
+          // Remover parâmetros da URL após processar
+          var cleanUrl = window.location.origin + window.location.pathname + (window.location.hash || '');
+          window.history.replaceState({}, document.title, cleanUrl);
+        } else {
+          console.warn('Token expirado ou inválido recebido em auth/expiry.');
+        }
+      }
+
+      var isLogged = (sessionStorage.getItem('loggedIn') === 'true') || (localStorage.getItem('rw_user_auth') === '1');
       var hasLoginError = params.get('error') === 'login_required';
       var path = window.location.pathname || '/';
       var currentUrl = window.location.href;
