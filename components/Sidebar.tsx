@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Swords, Radio } from 'lucide-react';
+import { LayoutDashboard, Users, Swords, Radio, ArrowRight } from 'lucide-react';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -67,6 +67,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                 </Link>
               );
             })}
+
+            {/* Botão externo para Visualization */}
+            <a
+              href="https://rw-tips.netlify.app/visualization"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 text-textMuted hover:bg-white/5 hover:text-textMain`}
+              title="Visualization"
+            >
+              <span className={`text-textMuted group-hover:text-textMain`}>
+                <ArrowRight size={20} />
+              </span>
+              <span className={`whitespace-nowrap transition-opacity duration-200
+                ${isOpen ? 'opacity-100' : 'opacity-0 md:group-hover:opacity-100'}`}
+              >
+                Visualization
+              </span>
+            </a>
           </nav>
         </aside>
     </>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { fetchLiveGames } from '../services/api';
 import { LiveGame } from '../types';
 import { Card } from '../components/ui/Card';
@@ -93,11 +93,27 @@ const LiveGameCard: React.FC<{ game: LiveGame, leagueColor: string }> = ({ game,
     const homeTeam = extractTeamName(game.home.name);
     const awayTeam = extractTeamName(game.away.name);
 
+    // Status helpers
+    const timeStatus = (game.time_status || '').toString().toLowerCase();
+    const isLive = timeStatus === '1' || timeStatus === 'live';
+    const isFinished = timeStatus === '3' || timeStatus.includes('ft') || timeStatus.includes('finish');
+    const isScheduled = !isLive && !isFinished;
+    const statusClass = isLive
+        ? 'bg-green-500/20 text-green-400'
+        : isFinished
+        ? 'bg-purple-500/20 text-purple-400'
+        : 'bg-red-500/20 text-red-400';
+    const statusLabel = isLive ? 'AO VIVO' : isFinished ? 'FINALIZADO' : 'AGENDADO';
+
     return (
         <Card 
             className={`border-l-4 p-4 hover:bg-surfaceHighlight/20 transition-all group relative ${isFlashing ? 'animate-pulse ring-2 ring-accent bg-accent/10' : ''}`} 
             style={{ borderLeftColor: leagueColor }}
         >
+            {/* Status badge (top-right) */}
+            <div className={`absolute top-0 right-0 px-2 py-1 rounded-bl text-[10px] font-bold ${statusClass}`}>
+                {statusLabel}
+            </div>
             <div className="flex justify-between items-center mb-4">
                 <div className="flex items-center gap-1 text-xs font-mono text-textMuted bg-black/20 px-2 py-1 rounded">
                     <Timer size={12} className={game.time_status === '1' ? 'text-green-400' : 'text-textMuted'} />
@@ -201,15 +217,35 @@ export const LiveGames: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const groupedGames = React.useMemo(() => {
+    // Helpers para status
+    const isLive = (g: LiveGame) => {
+        const ts = (g.time_status || '').toString().toLowerCase();
+        return ts === '1' || ts === 'live';
+    };
+    const isFinished = (g: LiveGame) => {
+        const ts = (g.time_status || '').toString().toLowerCase();
+        return ts === '3' || ts.includes('ft') || ts.includes('finish');
+    };
+
+    // Mostrar SOMENTE jogos ao vivo no grid principal
+    const groupedLiveGames = useMemo<Record<string, LiveGame[]>>(() => {
         const groups: Record<string, LiveGame[]> = {};
-        games.forEach(g => {
+        games.filter(isLive).forEach(g => {
             const leagueName = g.league.name;
             if (!groups[leagueName]) groups[leagueName] = [];
             groups[leagueName].push(g);
         });
         return groups;
     }, [games]);
+
+    // Entradas tipadas para evitar 'unknown' em leagueGames
+    const groupedLiveEntries = useMemo<[string, LiveGame[]][]>(
+        () => Object.entries(groupedLiveGames) as [string, LiveGame[]][],
+        [groupedLiveGames]
+    );
+
+    // Lista de finalizados (apenas para sinalizar em seção separada)
+    const finishedGames = useMemo<LiveGame[]>(() => games.filter(isFinished), [games]);
 
     return (
         <div className="space-y-6 animate-fade-in relative">
@@ -240,18 +276,18 @@ export const LiveGames: React.FC = () => {
                 </div>
             </div>
 
-            {loading && games.length === 0 ? (
+            {loading && Object.keys(groupedLiveGames).length === 0 ? (
                 <div className="flex justify-center py-20">
                     <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
                 </div>
-            ) : games.length === 0 ? (
+            ) : Object.keys(groupedLiveGames).length === 0 ? (
                 <div className="text-center py-20 text-textMuted bg-surface/30 rounded-xl border border-white/5">
                     <Bell size={48} className="mx-auto mb-4 opacity-20" />
                     <p>Nenhum jogo ao vivo no momento.</p>
                 </div>
             ) : (
                 <div className="space-y-8">
-                    {Object.entries(groupedGames).map(([leagueName, leagueGames]) => {
+                    {groupedLiveEntries.map(([leagueName, leagueGames]) => {
                         const leagueConfig = getLeagueConfig(leagueName);
                         
                         return (
@@ -276,6 +312,33 @@ export const LiveGames: React.FC = () => {
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {/* Seção de finalizados: apenas sinalização resumida */}
+            {finishedGames.length > 0 && (
+                <div className="mt-10">
+                    <div className="flex items-center gap-2 mb-3 px-1">
+                        <div className="w-1 h-6 rounded-full bg-purple-400"></div>
+                        <h3 className="font-bold text-lg text-white">Finalizados Recentes</h3>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {finishedGames.slice(0, 9).map((game) => {
+                            const leagueColor = getLeagueConfig(game.league.name).color;
+                            return (
+                                <Card key={`finished-${game.id}`} className="border-l-4 p-4 bg-white/5" style={{ borderLeftColor: leagueColor }}>
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="text-xs font-mono text-textMuted">FT</span>
+                                        <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 font-bold">FINALIZADO</span>
+                                    </div>
+                                    <div className="text-white font-mono font-bold">{game.ss}</div>
+                                    <div className="text-[11px] text-textMuted mt-1">
+                                        {extractPlayerName(game.home.name)} vs {extractPlayerName(game.away.name)}
+                                    </div>
+                                </Card>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
         </div>
