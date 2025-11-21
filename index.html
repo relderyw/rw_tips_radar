@@ -75,6 +75,9 @@
       var params = new URLSearchParams(window.location.search || '');
       var hasLoginError = params.get('error') === 'login_required';
       var path = window.location.pathname || '/';
+      var currentUrl = window.location.href;
+      var loginOrigin = 'https://rw-tips.netlify.app';
+      var loginPath = '/index.html';
 
       // Se já estiver logado e estiver na página de login, volta para a raiz
       if (isLogged && (path.endsWith('/index.html') || hasLoginError)) {
@@ -83,117 +86,11 @@
         return;
       }
 
-      if (!isLogged && !hasLoginError) {
-        // Redireciona explicitamente para /index.html com sinalizador de erro
-        var hash = window.location.hash || '';
-        window.location.replace('/index.html?error=login_required' + hash);
-      } else if (!isLogged && hasLoginError) {
-        // Exibe um overlay de login bloqueando o app até autenticar
-        var overlay = document.createElement('div');
-        overlay.id = 'rw-login-overlay';
-        overlay.style.position = 'fixed';
-        overlay.style.inset = '0';
-        overlay.style.zIndex = '9999';
-        overlay.style.background = 'rgba(0,0,0,0.6)';
-        overlay.style.backdropFilter = 'blur(3px)';
-
-        var box = document.createElement('div');
-        box.style.width = '100%';
-        box.style.maxWidth = '420px';
-        box.style.margin = '10vh auto';
-        box.style.background = 'rgba(24,24,27,0.95)';
-        box.style.color = '#fff';
-        box.style.border = '1px solid rgba(255,255,255,0.08)';
-        box.style.borderRadius = '12px';
-        box.style.padding = '16px';
-        box.style.boxShadow = '0 10px 30px rgba(0,0,0,0.4)';
-
-        var title = document.createElement('h4');
-        title.textContent = 'Login necessário';
-        title.style.margin = '0 0 8px 0';
-        title.style.fontWeight = '700';
-
-        var desc = document.createElement('p');
-        desc.textContent = 'Faça login para acessar o Radar de Mercado.';
-        desc.style.margin = '0 0 12px 0';
-        desc.style.color = '#c4c4cc';
-        desc.style.fontSize = '14px';
-
-        var input = document.createElement('input');
-        input.type = 'text';
-        input.placeholder = 'Código de acesso';
-        input.style.width = '100%';
-        input.style.padding = '10px 12px';
-        input.style.borderRadius = '8px';
-        input.style.border = '1px solid rgba(255,255,255,0.12)';
-        input.style.background = 'rgba(255,255,255,0.06)';
-        input.style.color = '#fff';
-        input.style.outline = 'none';
-        input.style.marginBottom = '10px';
-
-        var error = document.createElement('div');
-        error.style.color = '#ef4444';
-        error.style.fontSize = '12px';
-        error.style.marginBottom = '10px';
-        error.style.display = 'none';
-
-        var actions = document.createElement('div');
-        actions.style.display = 'flex';
-        actions.style.gap = '8px';
-        actions.style.justifyContent = 'flex-end';
-
-        var cancelBtn = document.createElement('button');
-        cancelBtn.textContent = 'Cancelar';
-        cancelBtn.style.padding = '8px 12px';
-        cancelBtn.style.borderRadius = '8px';
-        cancelBtn.style.background = 'transparent';
-        cancelBtn.style.color = '#c4c4cc';
-        cancelBtn.style.border = 'none';
-        cancelBtn.style.cursor = 'pointer';
-        cancelBtn.onclick = function() {
-          // Mantém bloqueio; apenas limpa input/erro
-          input.value = '';
-          error.style.display = 'none';
-        };
-
-        var confirmBtn = document.createElement('button');
-        confirmBtn.textContent = 'Entrar';
-        confirmBtn.style.padding = '8px 12px';
-        confirmBtn.style.borderRadius = '8px';
-        confirmBtn.style.background = '#10b981';
-        confirmBtn.style.color = '#0b1020';
-        confirmBtn.style.border = 'none';
-        confirmBtn.style.cursor = 'pointer';
-        confirmBtn.style.fontWeight = '700';
-        confirmBtn.onclick = function() {
-          var code = (input.value || '').trim();
-          if (code.length < 4) {
-            error.textContent = 'Informe um código válido (mín. 4 caracteres).';
-            error.style.display = 'block';
-            return;
-          }
-          try {
-            sessionStorage.setItem('loggedIn', 'true');
-            localStorage.setItem('rw_user_auth', '1');
-          } catch (e) {}
-          // Remove overlay e volta para a raiz (home) sem o parâmetro de erro
-          var hash = window.location.hash || '';
-          overlay.remove();
-          window.location.replace('/' + hash);
-        };
-
-        actions.appendChild(cancelBtn);
-        actions.appendChild(confirmBtn);
-
-        box.appendChild(title);
-        box.appendChild(desc);
-        box.appendChild(input);
-        box.appendChild(error);
-        box.appendChild(actions);
-        overlay.appendChild(box);
-        document.addEventListener('DOMContentLoaded', function() {
-          document.body.appendChild(overlay);
-        });
+      if (!isLogged) {
+        // Redireciona para a página de login em outro domínio, com parâmetro de retorno
+        var loginUrl = loginOrigin + loginPath + '?error=login_required&return=' + encodeURIComponent(currentUrl);
+        window.location.replace(loginUrl);
+        return;
       }
     } catch (e) {
       // Se sessionStorage não estiver acessível, não bloquear
