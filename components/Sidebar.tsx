@@ -76,15 +76,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
                 try {
                   const token = localStorage.getItem('authToken');
                   const expiry = localStorage.getItem('tokenExpiry');
-                  const base = 'https://rwtips.netlify.app/visualization.html';
+                  const base = 'https://rw-tips.netlify.app/visualization.html';
                   let url = base;
                   if (token && expiry) {
                     url = `${base}?auth=${encodeURIComponent(token)}&expiry=${encodeURIComponent(expiry)}`;
                   }
-                  window.open(url, '_blank', 'noopener');
+                  // Navegar na mesma aba para evitar bloqueio de popup
+                  window.location.href = url;
                 } catch (err) {
                   // Fallback: abre sem parâmetros
-                  window.open('https://rwtips.netlify.app/visualization.html', '_blank', 'noopener');
+                  window.location.href = 'https://rw-tips.netlify.app/visualization.html';
                 }
               }}
               className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 text-textMuted hover:bg-white/5 hover:text-textMain`}
