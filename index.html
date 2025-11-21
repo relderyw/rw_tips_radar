@@ -71,12 +71,14 @@
   // Check de login o mais cedo possível (antes de carregar o app)
   (function() {
     try {
-      var isLogged = sessionStorage.getItem('loggedIn') === 'true';
+      var isLogged = (sessionStorage.getItem('loggedIn') === 'true') || (localStorage.getItem('rw_user_auth') === '1');
       var params = new URLSearchParams(window.location.search || '');
       var hasLoginError = params.get('error') === 'login_required';
       if (!isLogged && !hasLoginError) {
-        // Redireciona para a mesma página com sinalizador de erro de login
-        window.location.replace('index.html?error=login_required');
+        // Redireciona para a mesma origem com sinalizador de erro de login
+        var base = window.location.pathname || '/index.html';
+        var hash = window.location.hash || '';
+        window.location.replace(base + '?error=login_required' + hash);
       }
     } catch (e) {
       // Se sessionStorage não estiver acessível, não bloquear
