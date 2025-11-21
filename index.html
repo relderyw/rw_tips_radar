@@ -67,6 +67,23 @@
 }
 </script>
 <link rel="stylesheet" href="/index.css">
+<script>
+  // Check de login o mais cedo possível (antes de carregar o app)
+  (function() {
+    try {
+      var isLogged = sessionStorage.getItem('loggedIn') === 'true';
+      var params = new URLSearchParams(window.location.search || '');
+      var hasLoginError = params.get('error') === 'login_required';
+      if (!isLogged && !hasLoginError) {
+        // Redireciona para a mesma página com sinalizador de erro de login
+        window.location.replace('index.html?error=login_required');
+      }
+    } catch (e) {
+      // Se sessionStorage não estiver acessível, não bloquear
+      console.warn('Login check skipped (index.html):', e);
+    }
+  })();
+</script>
 </head>
   <body>
     <div id="root"></div>
