@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { fetchLiveGames, fetchPlayerHistory } from '../services/api';
 import { LiveGame, MatchPotential, HistoryPlayerStats } from '../types';
@@ -55,7 +56,7 @@ const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string
     );
 };
 
-// New Component: Compact Signal Badge (Only shows if stat is good)
+// Component: Compact Signal Badge (Only shows if stat is good)
 const StatSignal: React.FC<{ label: string; val: number; threshold: number; color: string; icon?: React.ReactNode }> = ({ label, val, threshold, color, icon }) => {
     if (val < threshold) return null; // Don't show if not relevant (Clean UI)
     
@@ -106,7 +107,7 @@ const LiveGameCard: React.FC<{
     let borderColor = leagueColor;
     let ringClass = '';
 
-    // Top Badges
+    // Top Badges (Priority Display)
     if (potential === 'top_clash') {
         borderColor = '#ef4444';
         ringClass = 'ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]';
@@ -183,17 +184,17 @@ const LiveGameCard: React.FC<{
                     {/* Signals Row - Only High Probability Tags */}
                     <div className="flex flex-wrap justify-center gap-1.5">
                         {/* Player 1 Signals */}
-                        <StatSignal label="HT+" val={stats.p1.htOver05Pct} threshold={90} color="bg-blue-500/10 text-blue-400 border-blue-500/20" />
-                        <StatSignal label="BTTS" val={stats.p1.bttsPct} threshold={75} color="bg-purple-500/10 text-purple-400 border-purple-500/20" icon={<Repeat size={8}/>} />
+                        <StatSignal label="HT+" val={stats.p1.htOver05Pct} threshold={90} color="text-blue-400 border-blue-500/30 bg-blue-500/5" />
+                        <StatSignal label="BTTS" val={stats.p1.bttsPct} threshold={75} color="text-purple-400 border-purple-500/30 bg-purple-500/5" icon={<Repeat size={8}/>} />
                         
                         {/* Player 2 Signals */}
-                        <StatSignal label="HT+" val={stats.p2.htOver05Pct} threshold={90} color="bg-blue-500/10 text-blue-400 border-blue-500/20" />
-                        <StatSignal label="BTTS" val={stats.p2.bttsPct} threshold={75} color="bg-purple-500/10 text-purple-400 border-purple-500/20" icon={<Repeat size={8}/>} />
+                        <StatSignal label="HT+" val={stats.p2.htOver05Pct} threshold={90} color="text-blue-400 border-blue-500/30 bg-blue-500/5" />
+                        <StatSignal label="BTTS" val={stats.p2.bttsPct} threshold={75} color="text-purple-400 border-purple-500/30 bg-purple-500/5" icon={<Repeat size={8}/>} />
                     </div>
                     
                     {/* Empty State if no good stats */}
                     {stats.p1.htOver05Pct < 90 && stats.p2.htOver05Pct < 90 && stats.p1.bttsPct < 75 && stats.p2.bttsPct < 75 && (
-                        <div className="text-center text-[9px] text-textMuted/50 italic py-0.5">Sem tendências fortes</div>
+                        <div className="text-center text-[9px] text-textMuted/30 italic py-0.5">Sem tendências fortes</div>
                     )}
                 </div>
             ) : null}
