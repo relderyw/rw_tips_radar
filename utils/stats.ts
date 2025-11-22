@@ -154,7 +154,7 @@ export const calculateHistoryPlayerStats = (matches: HistoryMatch[], player: str
     if (playerMatches.length === 0) return null;
 
     let totalGoalsHT = 0, totalGoalsFT = 0, totalScored = 0, totalConceded = 0, totalScoredHT = 0, wins = 0;
-    let htOver05 = 0, htOver15 = 0, htOver25 = 0, htBtts = 0; // Added vars
+    let htOver05 = 0, htOver15 = 0, htOver25 = 0, htBtts = 0; 
     let ftOver15 = 0, ftOver25 = 0, btts = 0;
 
     playerMatches.forEach(m => {
@@ -178,7 +178,7 @@ export const calculateHistoryPlayerStats = (matches: HistoryMatch[], player: str
 
         if (tHT > 0.5) htOver05++;
         if (tHT > 1.5) htOver15++;
-        if (tHT > 2.5) htOver25++; // Added
+        if (tHT > 2.5) htOver25++; 
         if (htHome > 0 && htAway > 0) htBtts++;
         
         if (tFT > 1.5) ftOver15++;
@@ -222,7 +222,6 @@ export const analyzeMatchPotential = (p1: HistoryPlayerStats, p2: HistoryPlayerS
     const avg = (a: number, b: number) => (a + b) / 2;
 
     // 1. TOP CONFRONTO
-    // Criteria: Over 0.5 HT=100%, 1.5 HT>=95%, BTTS FT=100%, 1.5 FT=100%, 2.5 FT>=95%, Avg Player>=2.7
     const isTopClash = 
         p1.htOver05Pct === 100 && p2.htOver05Pct === 100 &&
         avg(p1.htOver15Pct, p2.htOver15Pct) >= 95 &&
@@ -234,8 +233,6 @@ export const analyzeMatchPotential = (p1: HistoryPlayerStats, p2: HistoryPlayerS
     if (isTopClash) return 'top_clash';
 
     // 2. TOP HT
-    // Criteria: Over 0.5 HT=100%, Over 1.5 HT=100%, Over 2.5 HT=100%, BTTS HT=100%
-    // Note: HT 2.5 100% is extremely rare, might need adjustment but sticking to prompt
     const isTopHT = 
         p1.htOver05Pct === 100 && p2.htOver05Pct === 100 &&
         p1.htOver15Pct === 100 && p2.htOver15Pct === 100 &&
@@ -245,7 +242,6 @@ export const analyzeMatchPotential = (p1: HistoryPlayerStats, p2: HistoryPlayerS
     if (isTopHT) return 'top_ht';
 
     // 3. TOP FT
-    // Criteria: FT stats 100% (1.5, 2.5, BTTS) even if HT is weak
     const isTopFT = 
         p1.ftOver15Pct === 100 && p2.ftOver15Pct === 100 &&
         p1.ftOver25Pct === 100 && p2.ftOver25Pct === 100 &&
@@ -275,7 +271,7 @@ export const generateProjections = (h2hStats: any, p1Stats: HistoryPlayerStats, 
     };
     if (h2hStats?.ht) {
         checkLine('Over 0.5 HT', h2hStats.ht.over05Pct, p1Stats.htOver05Pct, p2Stats.htOver05Pct, leagueStats.htOver05Pct, 80);
-        checkLine('BTTS HT', h2hStats.ht.bttsPct, p1Stats.htBttsPct, p2Stats.htBttsPct, leagueStats.bttsPct, 60); 
+        checkLine('BTTS HT', h2hStats.ht.bttsPct, p1Stats.htBttsPct, p2Stats.htBttsPct, leagueStats.bttsPct, 60);
     }
     if (h2hStats?.ft) {
         checkLine('Over 2.5 FT', h2hStats.ft.over25Pct, p1Stats.ftOver25Pct, p2Stats.ftOver25Pct, leagueStats.ftOver25Pct, 70);

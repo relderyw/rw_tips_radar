@@ -1,10 +1,11 @@
+
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { fetchLiveGames, fetchPlayerHistory } from '../services/api';
 import { LiveGame, MatchPotential, HistoryPlayerStats } from '../types';
 import { Card } from '../components/ui/Card';
 import { getLeagueConfig } from '../utils/format';
 import { calculateHistoryPlayerStats, analyzeMatchPotential } from '../utils/stats';
-import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2, Trophy } from 'lucide-react';
+import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2, Repeat } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // --- Interfaces ---
@@ -27,7 +28,6 @@ const extractTeamName = (fullName: string): string => {
 
 // --- Components ---
 
-// Toast
 const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string) => void }> = ({ notification, onClose }) => {
     useEffect(() => {
         const timer = setTimeout(() => onClose(notification.id), 5000); 
@@ -43,7 +43,7 @@ const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string
                         <span className="text-xl">⚽</span>
                     </div>
                     <div className="ml-3 w-0 flex-1 pt-0.5">
-                        <p className="text-sm font-black text-green-400 uppercase tracking-wider">GOL!</p>
+                        <p className="text-sm font-black text-green-400 uppercase tracking-wider">GOL DETECTADO!</p>
                         <p className="mt-1 text-sm font-medium text-white truncate">{notification.match}</p>
                         <p className="mt-1 text-xs text-textMuted font-mono font-bold">{notification.score}</p>
                     </div>
@@ -56,13 +56,18 @@ const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string
     );
 };
 
-// Clean Signal Badge
-const SignalBadge: React.FC<{ label: string; color: string; icon?: React.ReactNode }> = ({ label, color, icon }) => (
-    <div className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider border bg-surfaceHighlight/50 ${color}`}>
-        {icon}
-        <span>{label}</span>
-    </div>
-);
+// Improved Signal Badge
+const StatSignal: React.FC<{ label: string; val: number; threshold: number; color: string; icon?: React.ReactNode }> = ({ label, val, threshold, color, icon }) => {
+    if (val < threshold) return null;
+    
+    return (
+        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border bg-surfaceHighlight/50 ${color}`}>
+            {icon}
+            <span>{label}</span>
+            {val === 100 && <span className="text-[8px] ml-0.5">★</span>}
+        </div>
+    );
+};
 
 const LiveGameCard: React.FC<{ 
     game: LiveGame; 
@@ -98,12 +103,12 @@ const LiveGameCard: React.FC<{
     const isLive = (game.time_status || '').toString() === '1';
     const potential = stats?.potential || 'none';
 
-    // Card Style Logic
     let borderColor = leagueColor;
     let ringClass = '';
     let bgClass = 'bg-surface/50';
     let potentialBadge = null;
 
+    // Top Badges Logic
     if (potential === 'top_clash') {
         borderColor = '#ef4444';
         ringClass = 'ring-1 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)]';
@@ -113,13 +118,16 @@ const LiveGameCard: React.FC<{
         borderColor = '#eab308';
         ringClass = 'ring-1 ring-yellow-500/50';
         potentialBadge = <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-yellow-500 to-transparent" />;
+    } else if (potential === 'top_ft') {
+        borderColor = '#10b981';
+        ringClass = 'ring-1 ring-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]';
+        potentialBadge = <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />;
     }
 
     return (
         <Card className={`border-l-4 p-0 relative overflow-hidden transition-all hover:translate-y-[-2px] ${ringClass} ${bgClass}`} style={{ borderLeftColor: borderColor }}>
             {potentialBadge}
             
-            {/* Header Status */}
             <div className="flex justify-between items-start p-3 pb-0">
                 <div className="flex items-center gap-1 text-xs font-mono bg-black/30 px-2 py-0.5 rounded text-textMuted">
                     <Timer size={10} className={isLive ? 'text-green-400' : 'text-textMuted'} />
@@ -130,9 +138,7 @@ const LiveGameCard: React.FC<{
                 </div>
             </div>
 
-            {/* Match Content */}
             <div className="p-4 pt-2 flex flex-col gap-3">
-                {/* Score & Teams */}
                 <div className="flex justify-between items-center">
                     <div className="flex-1 min-w-0">
                         <div className="font-bold text-white text-sm truncate">{homePlayer}</div>
@@ -149,22 +155,19 @@ const LiveGameCard: React.FC<{
                     </div>
                 </div>
 
-                {/* HT Score */}
                 {game.scores?.['1'] && (
                     <div className="text-center text-[10px] text-textMuted font-mono -mt-1 opacity-60">
                         HT: {game.scores['1'].home}-{game.scores['1'].away}
                     </div>
                 )}
 
-                {/* STATS AREA (The "Verdict") */}
                 {loadingStats ? (
                     <div className="flex justify-center py-2">
                         <Loader2 size={14} className="animate-spin text-textMuted" />
                     </div>
                 ) : stats ? (
                     <div className="space-y-2">
-                        
-                        {/* 1. Averages (Always Show) */}
+                        {/* 1. Averages (Always Show if stats exist) */}
                         <div className="flex justify-between items-center bg-black/20 rounded px-2 py-1.5">
                             <span className={`text-xs font-mono font-bold ${stats.p1.avgGoalsFT >= 2.7 ? 'text-green-400' : 'text-textMuted'}`}>
                                 {stats.p1.avgGoalsFT}
@@ -175,26 +178,20 @@ const LiveGameCard: React.FC<{
                             </span>
                         </div>
 
-                        {/* 2. Opportunity Signals (Only Show High Value) */}
-                        <div className="flex flex-wrap justify-center gap-2">
-                            {/* Top Clash Badge */}
-                            {potential === 'top_clash' && (
-                                <SignalBadge label="TOP CONFRONTO" color="text-red-400 border-red-500/30" icon={<Flame size={10}/>} />
-                            )}
-                            {potential === 'top_ht' && (
-                                <SignalBadge label="TOP HT" color="text-yellow-400 border-yellow-500/30" icon={<Zap size={10}/>} />
-                            )}
-                            {potential === 'top_ft' && (
-                                <SignalBadge label="TOP FT" color="text-emerald-400 border-emerald-500/30" icon={<Rocket size={10}/>} />
-                            )}
+                        {/* 2. Clean Signals */}
+                        <div className="flex flex-wrap justify-center gap-1.5">
+                            {/* Top Badges */}
+                            {potential === 'top_clash' && <span className="bg-red-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"><Flame size={10} fill="white" /> TOP CONFRONTO</span>}
+                            {potential === 'top_ht' && <span className="bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"><Zap size={10} fill="black" /> TOP HT</span>}
+                            {potential === 'top_ft' && <span className="bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"><Rocket size={10} fill="white" /> TOP FT</span>}
 
-                            {/* Individual High Stats (Clean) */}
-                            {(stats.p1.htOver05Pct >= 90 || stats.p2.htOver05Pct >= 90) && (
-                                <SignalBadge label="HT+" color="text-blue-300 border-blue-500/30" />
-                            )}
-                            {(stats.p1.bttsPct >= 80 || stats.p2.bttsPct >= 80) && (
-                                <SignalBadge label="BTTS" color="text-purple-300 border-purple-500/30" icon={<RefreshCw size={10}/>} />
-                            )}
+                            {/* Player 1 Badges */}
+                            <StatSignal label="HT+" val={stats.p1.htOver05Pct} threshold={90} color="text-blue-300 border-blue-500/30 bg-blue-500/5" />
+                            <StatSignal label="BTTS" val={stats.p1.bttsPct} threshold={80} color="text-purple-300 border-purple-500/30 bg-purple-500/5" icon={<Repeat size={10}/>} />
+                            
+                            {/* Player 2 Badges */}
+                            <StatSignal label="HT+" val={stats.p2.htOver05Pct} threshold={90} color="text-blue-300 border-blue-500/30 bg-blue-500/5" />
+                            <StatSignal label="BTTS" val={stats.p2.bttsPct} threshold={80} color="text-purple-300 border-purple-500/30 bg-purple-500/5" icon={<Repeat size={10}/>} />
                         </div>
                     </div>
                 ) : null}
