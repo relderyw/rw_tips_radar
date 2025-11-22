@@ -5,7 +5,8 @@ export const processRawGames = (games: any[]): ProcessedGame[] => {
     const homePlayer = game.home_player || game.homePlayer || game.home?.name || 'Desconhecido';
     const awayPlayer = game.away_player || game.awayPlayer || game.away?.name || 'Desconhecido';
     const league = game.league_name || game.league || game.competition?.name || 'Liga Desconhecida';
-    const date = game.data_realizacao || game.date || game.start_at || new Date().toISOString();
+    // Added game.startTime for Green365 API
+    const date = game.data_realizacao || game.date || game.start_at || game.startTime || new Date().toISOString();
     
     const scoreHome = Number(game.score_home ?? game.score?.home ?? 0);
     const scoreAway = Number(game.score_away ?? game.score?.away ?? 0);

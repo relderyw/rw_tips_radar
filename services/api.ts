@@ -111,7 +111,7 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
 export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     try {
         // Updated to use new API params
-        const url = `${HISTORY_API_URL}?page=1&limit=100&sport=esoccer&status=ended`;
+        const url = `${HISTORY_API_URL}?page=1&limit=24&sport=esoccer&status=ended`;
         const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
         if(response.ok) {
             const data = await response.json();
