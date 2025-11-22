@@ -2,10 +2,10 @@
 import { Game, H2HResponse, HistoryResponse, HistoryMatch, LiveGame } from '../types';
 
 const GAMES_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events';
-const H2H_API_URL = 'https://caveira-proxy.onrender.com/api/v1/historico/confronto';
-const HISTORY_API_URL = 'https://caveira-proxy.onrender.com/api/historico/partidas';
-const PLAYER_HISTORY_API_URL = 'https://caveira-proxy.onrender.com/api/v1/historico/partidas-assincrono';
-const LIVE_API_URL = 'https://caveira-proxy.onrender.com/api/matches/live';
+const H2H_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/confronto';
+const HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas';
+const PLAYER_HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/partidas-assincrono';
+const LIVE_API_URL = 'https://rwtips-r943.onrender.com/api/matches/live';
 const CORS_PROXY = 'https://corsproxy.io/?';
 
 // Helper for delay
