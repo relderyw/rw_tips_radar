@@ -4,10 +4,10 @@ import { LiveGame, MatchPotential, HistoryPlayerStats } from '../types';
 import { Card } from '../components/ui/Card';
 import { getLeagueConfig } from '../utils/format';
 import { calculateHistoryPlayerStats, analyzeMatchPotential } from '../utils/stats';
-import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, BarChart3, Loader2 } from 'lucide-react';
+import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-// --- Types & Interfaces ---
+// --- Interfaces ---
 interface GoalNotification {
     id: string;
     match: string;
@@ -15,7 +15,7 @@ interface GoalNotification {
     leagueColor: string;
 }
 
-// --- Helper Functions ---
+// --- Helpers ---
 const extractPlayerName = (fullName: string): string => {
     const match = fullName.match(/\((.*?)\)/);
     return match ? match[1] : fullName;
@@ -27,12 +27,9 @@ const extractTeamName = (fullName: string): string => {
 
 // --- Components ---
 
-// 1. Toast Notification Component
 const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string) => void }> = ({ notification, onClose }) => {
     useEffect(() => {
-        const timer = setTimeout(() => {
-            onClose(notification.id);
-        }, 5000); 
+        const timer = setTimeout(() => onClose(notification.id), 5000); 
         return () => clearTimeout(timer);
     }, [notification.id, onClose]);
 
@@ -41,62 +38,45 @@ const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string
             <div className="p-4 bg-gradient-to-r from-surfaceHighlight to-surface relative overflow-hidden">
                 <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: notification.leagueColor }}></div>
                 <div className="flex items-start">
-                    <div className="flex-shrink-0">
-                        <div className="h-10 w-10 rounded-full bg-green-500/20 flex items-center justify-center animate-pulse">
-                            <span className="text-xl">⚽</span>
-                        </div>
+                    <div className="h-10 w-10 rounded-full bg-green-500/20 flex items-center justify-center animate-pulse shrink-0">
+                        <span className="text-xl">⚽</span>
                     </div>
                     <div className="ml-3 w-0 flex-1 pt-0.5">
                         <p className="text-sm font-black text-green-400 uppercase tracking-wider">GOL DETECTADO!</p>
                         <p className="mt-1 text-sm font-medium text-white truncate">{notification.match}</p>
                         <p className="mt-1 text-xs text-textMuted font-mono font-bold">{notification.score}</p>
                     </div>
-                    <div className="ml-4 flex flex-shrink-0">
-                        <button
-                            type="button"
-                            className="inline-flex rounded-md text-textMuted hover:text-white focus:outline-none"
-                            onClick={() => onClose(notification.id)}
-                        >
-                            <span className="sr-only">Close</span>
-                            <X size={16} />
-                        </button>
-                    </div>
+                    <button className="ml-4 text-textMuted hover:text-white" onClick={() => onClose(notification.id)}>
+                        <X size={16} />
+                    </button>
                 </div>
             </div>
         </div>
     );
 };
 
-// 2. Mini Stat Bar Helper
-const MiniStat: React.FC<{ label: string; p1: number; p2: number; highlight?: boolean }> = ({ label, p1, p2, highlight }) => (
-    <div className="flex flex-col w-full">
-        <div className="flex justify-between text-[9px] text-textMuted mb-0.5 px-1">
-            <span>{p1}%</span>
-            <span className="font-bold uppercase">{label}</span>
-            <span>{p2}%</span>
-        </div>
-        <div className="flex h-1.5 w-full bg-black/30 rounded-full overflow-hidden">
-            <div style={{ width: `${p1}%` }} className={`h-full ${p1 >= 95 ? 'bg-green-400' : 'bg-primary/60'}`}></div>
-            <div className="flex-1 bg-transparent"></div>
-            <div style={{ width: `${p2}%` }} className={`h-full ${p2 >= 95 ? 'bg-green-400' : 'bg-accent/60'}`}></div>
+const MiniStatBar: React.FC<{ label: string, val: number, highlight?: boolean }> = ({ label, val, highlight }) => (
+    <div className="flex justify-between items-center text-[9px] w-full">
+        <span className="text-textMuted uppercase font-bold">{label}</span>
+        <div className="flex items-center gap-1">
+            <div className="w-12 h-1.5 bg-black/30 rounded-full overflow-hidden">
+                <div style={{ width: `${val}%` }} className={`h-full ${val >= 80 ? 'bg-green-400' : 'bg-white/30'}`}></div>
+            </div>
+            <span className={`font-mono font-bold ${val >= 80 ? 'text-green-400' : 'text-white'}`}>{val}%</span>
         </div>
     </div>
 );
 
-// 3. Individual Game Card Component
-const LiveGameCard: React.FC<{ game: LiveGame, leagueColor: string }> = ({ game, leagueColor }) => {
+const LiveGameCard: React.FC<{ 
+    game: LiveGame; 
+    leagueColor: string; 
+    stats?: { p1: HistoryPlayerStats, p2: HistoryPlayerStats, potential: MatchPotential };
+    loadingStats: boolean;
+}> = ({ game, leagueColor, stats, loadingStats }) => {
     const navigate = useNavigate();
     const [isFlashing, setIsFlashing] = useState(false);
-    
-    // Analysis State
-    const [analyzing, setAnalyzing] = useState(false);
-    const [stats, setStats] = useState<{ p1: HistoryPlayerStats, p2: HistoryPlayerStats } | null>(null);
-    const [potential, setPotential] = useState<MatchPotential>('none');
-    
     const prevScoreRef = useRef(game.ss);
-    const hasChecked = useRef(false);
 
-    // Flash Effect
     useEffect(() => {
         if (prevScoreRef.current !== game.ss) {
             setIsFlashing(true);
@@ -105,43 +85,6 @@ const LiveGameCard: React.FC<{ game: LiveGame, leagueColor: string }> = ({ game,
             return () => clearTimeout(timer);
         }
     }, [game.ss]);
-
-    // Background Analysis
-    useEffect(() => {
-        const check = async () => {
-            if (hasChecked.current) return;
-            hasChecked.current = true;
-            setAnalyzing(true);
-
-            const p1 = extractPlayerName(game.home.name);
-            const p2 = extractPlayerName(game.away.name);
-            
-            try {
-                const [p1Hist, p2Hist] = await Promise.all([
-                    fetchPlayerHistory(p1, 10),
-                    fetchPlayerHistory(p2, 10)
-                ]);
-                
-                const p1Stats = calculateHistoryPlayerStats(p1Hist, p1, 10);
-                const p2Stats = calculateHistoryPlayerStats(p2Hist, p2, 10);
-
-                if (p1Stats && p2Stats) {
-                    setStats({ p1: p1Stats, p2: p2Stats });
-                    const result = analyzeMatchPotential(p1Stats, p2Stats);
-                    setPotential(result);
-                }
-            } catch (e) {
-                console.warn("Failed to analyze live game", e);
-            } finally {
-                setAnalyzing(false);
-            }
-        };
-        
-        // Only check if game is live
-        if (game.time_status === '1' || game.time_status === 'live') {
-            check();
-        }
-    }, [game.home.name, game.away.name, game.time_status]);
 
     const handleGoToH2H = () => {
         const p1 = extractPlayerName(game.home.name);
@@ -155,14 +98,9 @@ const LiveGameCard: React.FC<{ game: LiveGame, leagueColor: string }> = ({ game,
     const homeTeam = extractTeamName(game.home.name);
     const awayTeam = extractTeamName(game.away.name);
 
-    const timeStatus = (game.time_status || '').toString().toLowerCase();
-    const isLive = timeStatus === '1' || timeStatus === 'live';
-    const isFinished = timeStatus === '3' || timeStatus.includes('ft') || timeStatus.includes('finish');
-    
-    const statusClass = isLive ? 'bg-green-500/20 text-green-400' : isFinished ? 'bg-purple-500/20 text-purple-400' : 'bg-red-500/20 text-red-400';
-    const statusLabel = isLive ? 'AO VIVO' : isFinished ? 'FINALIZADO' : 'AGENDADO';
+    const isLive = (game.time_status || '').toString() === '1';
+    const potential = stats?.potential || 'none';
 
-    // Badge Logic
     let BadgeComponent = null;
     let borderColor = leagueColor;
     let ringClass = '';
@@ -170,159 +108,154 @@ const LiveGameCard: React.FC<{ game: LiveGame, leagueColor: string }> = ({ game,
     if (potential === 'top_clash') {
         borderColor = '#ef4444';
         ringClass = 'ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]';
-        BadgeComponent = (
-            <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 animate-pulse">
-                <Flame size={10} fill="white" /> TOP CONFRONTO
-            </span>
-        );
+        BadgeComponent = <span className="bg-red-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"><Flame size={10} fill="white" /> TOP CONFRONTO</span>;
     } else if (potential === 'top_ht') {
         borderColor = '#eab308';
         ringClass = 'ring-2 ring-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]';
-        BadgeComponent = (
-            <span className="bg-yellow-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 animate-pulse">
-                <Zap size={10} fill="black" /> TOP HT
-            </span>
-        );
+        BadgeComponent = <span className="bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"><Zap size={10} fill="black" /> TOP HT</span>;
     } else if (potential === 'top_ft') {
         borderColor = '#10b981';
         ringClass = 'ring-2 ring-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]';
-        BadgeComponent = (
-            <span className="bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 animate-pulse">
-                <Rocket size={10} fill="white" /> TOP FT
-            </span>
-        );
+        BadgeComponent = <span className="bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"><Rocket size={10} fill="white" /> TOP FT</span>;
     }
 
     return (
-        <Card 
-            className={`border-l-4 p-4 hover:bg-surfaceHighlight/20 transition-all group relative ${isFlashing ? 'animate-pulse ring-2 ring-accent bg-accent/10' : ''} ${ringClass}`} 
-            style={{ borderLeftColor: borderColor }}
-        >
-            <div className={`absolute top-0 right-0 px-2 py-1 rounded-bl text-[10px] font-bold ${statusClass}`}>
-                {statusLabel}
+        <Card className={`border-l-4 p-3 hover:bg-surfaceHighlight/20 transition-all group relative ${isFlashing ? 'animate-pulse ring-2 ring-accent bg-accent/10' : ''} ${ringClass}`} style={{ borderLeftColor: borderColor }}>
+            <div className="absolute top-0 right-0 px-2 py-1 rounded-bl text-[9px] font-bold bg-black/40 text-textMuted flex items-center gap-1">
+                {isLive && <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>}
+                {isLive ? 'AO VIVO' : 'AGENDADO'}
             </div>
 
             {BadgeComponent && (
-                <div className="absolute top-0 left-0 right-0 flex justify-center -mt-3">
+                <div className="absolute top-0 left-0 right-0 flex justify-center -mt-2.5">
                     {BadgeComponent}
                 </div>
             )}
 
-            {/* Header: Time & Score */}
-            <div className="flex justify-between items-center mb-3 mt-2">
-                <div className="flex items-center gap-1 text-xs font-mono text-textMuted bg-black/20 px-2 py-1 rounded">
+            <div className="flex justify-between items-center mb-3 mt-1">
+                <div className="flex items-center gap-1 text-xs font-mono text-textMuted bg-black/20 px-2 py-0.5 rounded">
                     <Timer size={12} className={isLive ? 'text-green-400' : 'text-textMuted'} />
                     {game.timer?.tm ?? 0}'
                 </div>
-                <div className={`font-mono font-bold text-xl tracking-widest text-white transition-all duration-300 ${isFlashing ? 'text-green-400 scale-125' : ''}`}>
+                <div className={`font-mono font-bold text-xl tracking-widest text-white ${isFlashing ? 'text-green-400 scale-110' : ''}`}>
                     {game.ss}
                 </div>
             </div>
 
-            {/* Teams */}
-            <div className="space-y-2 mb-4">
+            <div className="space-y-2 mb-3">
                 <div className="flex justify-between items-center">
                     <div className="overflow-hidden">
-                        <div className="font-bold text-white truncate max-w-[120px]">{homePlayer}</div>
-                        <div className="text-[10px] text-textMuted truncate">{homeTeam}</div>
+                        <div className="font-bold text-white truncate max-w-[100px] text-xs">{homePlayer}</div>
+                        <div className="text-[9px] text-textMuted truncate max-w-[100px]">{homeTeam}</div>
                     </div>
-                    {game.scores && game.scores['1'] && (
-                        <span className="text-xs text-textMuted opacity-50 whitespace-nowrap ml-2 font-mono">
-                            (HT {game.scores['1'].home}-{game.scores['1'].away})
-                        </span>
-                    )}
+                    {game.scores?.['1'] && <span className="text-[10px] text-textMuted font-mono opacity-60">(HT {game.scores['1'].home}-{game.scores['1'].away})</span>}
                 </div>
                 <div className="flex justify-between items-center">
                     <div className="overflow-hidden">
-                        <div className="font-bold text-white truncate max-w-[120px]">{awayPlayer}</div>
-                        <div className="text-[10px] text-textMuted truncate">{awayTeam}</div>
+                        <div className="font-bold text-white truncate max-w-[100px] text-xs">{awayPlayer}</div>
+                        <div className="text-[9px] text-textMuted truncate max-w-[100px]">{awayTeam}</div>
                     </div>
                 </div>
             </div>
 
-            {/* LIVE STATS SECTION (NEW) */}
-            {isLive && (
-                <div className="bg-black/20 rounded-lg p-2 mb-3 border border-white/5">
-                    {analyzing ? (
-                        <div className="flex justify-center items-center gap-2 text-[10px] text-textMuted py-1">
-                            <Loader2 size={12} className="animate-spin" /> Analisando histórico...
-                        </div>
-                    ) : stats ? (
-                        <div className="space-y-2">
-                            <div className="flex justify-between text-[10px] text-white font-mono font-bold border-b border-white/5 pb-1">
-                                <span className="text-primary">{stats.p1.avgGoalsFT}</span>
-                                <span className="text-textMuted uppercase font-normal">Média Gols</span>
-                                <span className="text-accent">{stats.p2.avgGoalsFT}</span>
-                            </div>
-                            <MiniStat label="HT 0.5" p1={stats.p1.htOver05Pct} p2={stats.p2.htOver05Pct} />
-                            <MiniStat label="BTTS FT" p1={stats.p1.bttsPct} p2={stats.p2.bttsPct} />
-                        </div>
-                    ) : (
-                        <div className="text-center text-[10px] text-textMuted italic">Histórico indisponível</div>
-                    )}
+            {/* ALWAYS SHOW METRICS if available */}
+            {loadingStats ? (
+                <div className="bg-black/20 rounded p-2 mb-2 flex justify-center text-[10px] text-textMuted gap-1">
+                    <Loader2 size={12} className="animate-spin" /> Analisando...
                 </div>
-            )}
+            ) : stats ? (
+                <div className="bg-black/20 rounded p-2 mb-2 space-y-1">
+                    <div className="flex justify-between text-[9px] border-b border-white/5 pb-1 mb-1">
+                        <div className="text-primary font-bold">{stats.p1.avgGoalsFT} <span className="text-textMuted font-normal">Avg</span></div>
+                        <div className="text-accent font-bold">{stats.p2.avgGoalsFT} <span className="text-textMuted font-normal">Avg</span></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-0.5">
+                            <MiniStatBar label="HT 0.5" val={stats.p1.htOver05Pct} />
+                            <MiniStatBar label="BTTS" val={stats.p1.bttsPct} />
+                        </div>
+                        <div className="space-y-0.5">
+                            <MiniStatBar label="HT 0.5" val={stats.p2.htOver05Pct} />
+                            <MiniStatBar label="BTTS" val={stats.p2.bttsPct} />
+                        </div>
+                    </div>
+                </div>
+            ) : null}
 
-            <button 
-                onClick={handleGoToH2H}
-                className="w-full py-2 bg-white/5 hover:bg-accent hover:text-surface text-accent text-xs font-bold rounded flex items-center justify-center gap-2 transition-colors"
-            >
-                <Swords size={14} />
-                ANALISAR H2H
-                <ArrowRight size={14} />
+            <button onClick={handleGoToH2H} className="w-full py-1.5 bg-white/5 hover:bg-accent hover:text-surface text-accent text-[10px] font-bold rounded flex items-center justify-center gap-1 transition-colors">
+                <Swords size={12} /> ANALISAR
             </button>
         </Card>
     );
 };
 
-// 4. Main Page Component
 export const LiveGames: React.FC = () => {
     const [games, setGames] = useState<LiveGame[]>([]);
     const [loading, setLoading] = useState(true);
-    
     const [notifications, setNotifications] = useState<GoalNotification[]>([]);
+    const [playerStatsCache, setPlayerStatsCache] = useState<Record<string, HistoryPlayerStats>>({});
+    
     const previousScores = useRef<Record<string, string>>({});
     const isFirstLoad = useRef(true);
 
-    const addNotification = (notification: GoalNotification) => {
-        setNotifications((prev) => [notification, ...prev]);
-    };
+    // Batch fetch player stats
+    const fetchMissingStats = async (liveGames: LiveGame[]) => {
+        const playersToFetch = new Set<string>();
+        
+        liveGames.forEach(g => {
+            if (g.time_status !== '1' && g.time_status !== 'live') return;
+            const p1 = extractPlayerName(g.home.name);
+            const p2 = extractPlayerName(g.away.name);
+            if (!playerStatsCache[p1]) playersToFetch.add(p1);
+            if (!playerStatsCache[p2]) playersToFetch.add(p2);
+        });
 
-    const removeNotification = (id: string) => {
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
+        if (playersToFetch.size === 0) return;
+
+        // Limit concurrency
+        const queue = Array.from(playersToFetch);
+        const BATCH_SIZE = 3;
+        
+        for (let i = 0; i < queue.length; i += BATCH_SIZE) {
+            const batch = queue.slice(i, i + BATCH_SIZE);
+            await Promise.all(batch.map(async (player) => {
+                try {
+                    const history = await fetchPlayerHistory(player, 10);
+                    const stats = calculateHistoryPlayerStats(history, player, 10);
+                    if (stats) {
+                        setPlayerStatsCache(prev => ({ ...prev, [player]: stats }));
+                    }
+                } catch (e) { console.warn(`Failed stats for ${player}`, e); }
+            }));
+        }
     };
 
     const loadLive = async () => {
         if (isFirstLoad.current) setLoading(true);
-        
         const data = await fetchLiveGames();
         
-        // Goal Detection Logic
         data.forEach(game => {
-            const prevScore = previousScores.current[game.id];
-            const currentScore = game.ss;
-
-            if (prevScore && prevScore !== currentScore && !isFirstLoad.current) {
-                const leagueColor = getLeagueConfig(game.league.name).color;
-                const home = extractPlayerName(game.home.name);
-                const away = extractPlayerName(game.away.name);
-                
+            const prev = previousScores.current[game.id];
+            const curr = game.ss;
+            if (prev && prev !== curr && !isFirstLoad.current) {
                 addNotification({
-                    id: Date.now().toString() + game.id,
-                    match: `${home} vs ${away}`,
-                    score: currentScore,
-                    leagueColor
+                    id: Date.now() + game.id,
+                    match: `${extractPlayerName(game.home.name)} vs ${extractPlayerName(game.away.name)}`,
+                    score: curr,
+                    leagueColor: getLeagueConfig(game.league.name).color
                 });
             }
-            previousScores.current[game.id] = currentScore;
+            previousScores.current[game.id] = curr;
         });
 
         setGames(data);
-        
         if (isFirstLoad.current) {
             setLoading(false);
             isFirstLoad.current = false;
         }
+        
+        // Trigger background stats fetch
+        fetchMissingStats(data);
     };
 
     useEffect(() => {
@@ -331,94 +264,82 @@ export const LiveGames: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const isLive = (g: LiveGame) => {
-        const ts = (g.time_status || '').toString().toLowerCase();
-        return ts === '1' || ts === 'live';
-    };
+    const addNotification = (n: GoalNotification) => setNotifications(prev => [n, ...prev]);
+    const removeNotification = (id: string) => setNotifications(prev => prev.filter(n => n.id !== id));
+
+    const isLive = (g: LiveGame) => (g.time_status || '').toString() === '1';
     const isFinished = (g: LiveGame) => {
         const ts = (g.time_status || '').toString().toLowerCase();
         return ts === '3' || ts.includes('ft') || ts.includes('finish');
     };
 
-    const groupedLiveGames = useMemo<Record<string, LiveGame[]>>(() => {
+    const groupedLive = useMemo(() => {
         const groups: Record<string, LiveGame[]> = {};
         games.filter(isLive).forEach(g => {
-            const leagueName = g.league.name;
-            if (!groups[leagueName]) groups[leagueName] = [];
-            groups[leagueName].push(g);
+            const ln = g.league.name;
+            if (!groups[ln]) groups[ln] = [];
+            groups[ln].push(g);
         });
-        return groups;
+        return Object.entries(groups);
     }, [games]);
 
-    const groupedLiveEntries = useMemo<[string, LiveGame[]][]>(
-        () => Object.entries(groupedLiveGames) as [string, LiveGame[]][],
-        [groupedLiveGames]
-    );
-
-    const finishedGames = useMemo<LiveGame[]>(() => games.filter(isFinished), [games]);
+    const finished = useMemo(() => games.filter(isFinished).slice(0, 12), [games]);
 
     return (
         <div className="space-y-6 animate-fade-in relative">
-            
             <div className="fixed top-20 right-4 z-50 flex flex-col gap-2 w-full max-w-sm pointer-events-none">
-                {notifications.map(n => (
-                    <GoalToast key={n.id} notification={n} onClose={removeNotification} />
-                ))}
+                {notifications.map(n => <GoalToast key={n.id} notification={n} onClose={removeNotification} />)}
             </div>
 
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                     <Radio className="text-red-500 animate-pulse" /> Jogos Ao Vivo
                 </h2>
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-textMuted animate-pulse flex items-center gap-1">
-                        <span className="w-2 h-2 bg-green-500 rounded-full inline-block"></span>
-                        Live
-                    </span>
-                    <button 
-                        onClick={() => { isFirstLoad.current = true; loadLive(); }} 
-                        className="p-2 bg-surfaceHighlight rounded-lg hover:bg-white/10 transition-colors text-textMuted hover:text-white"
-                        disabled={loading}
-                    >
-                        <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
-                    </button>
-                </div>
+                <button onClick={() => { isFirstLoad.current = true; loadLive(); }} className="p-2 bg-surfaceHighlight rounded hover:bg-white/10 text-textMuted">
+                    <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+                </button>
             </div>
 
-            {loading && Object.keys(groupedLiveGames).length === 0 ? (
-                <div className="flex justify-center py-20">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
-                </div>
-            ) : Object.keys(groupedLiveGames).length === 0 ? (
-                <div className="text-center py-20 text-textMuted bg-surface/30 rounded-xl border border-white/5">
-                    <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-textMuted">
-                        <Swords size={24} />
-                    </div>
-                    <p>Nenhum jogo ao vivo no momento.</p>
-                </div>
+            {loading && groupedLive.length === 0 ? (
+                <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div></div>
+            ) : groupedLive.length === 0 ? (
+                <div className="text-center py-20 text-textMuted bg-surface/30 rounded-xl border border-white/5"><p>Nenhum jogo ao vivo.</p></div>
             ) : (
                 <div className="space-y-8">
-                    {groupedLiveEntries.map(([leagueName, leagueGames]) => {
-                        const leagueConfig = getLeagueConfig(leagueName);
-                        
+                    {groupedLive.map(([leagueName, leagueGames]) => {
+                        const conf = getLeagueConfig(leagueName);
                         return (
                             <div key={leagueName} className="animate-slide-up">
                                 <div className="flex items-center gap-2 mb-3 px-1">
-                                    <div 
-                                        className="w-1 h-6 rounded-full"
-                                        style={{ backgroundColor: leagueConfig.color }}
-                                    ></div>
+                                    <div className="w-1 h-6 rounded-full" style={{ backgroundColor: conf.color }}></div>
                                     <h3 className="font-bold text-lg text-white">{leagueName}</h3>
                                 </div>
-
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {leagueGames.map(game => (
-                                        <LiveGameCard 
-                                            key={game.id} 
-                                            game={game} 
-                                            leagueColor={leagueConfig.color} 
-                                        />
-                                    ))}
+                                    {leagueGames.map(g => {
+                                        const p1 = extractPlayerName(g.home.name);
+                                        const p2 = extractPlayerName(g.away.name);
+                                        const statsP1 = playerStatsCache[p1];
+                                        const statsP2 = playerStatsCache[p2];
+                                        
+                                        let comboStats = undefined;
+                                        if (statsP1 && statsP2) {
+                                            comboStats = { 
+                                                p1: statsP1, 
+                                                p2: statsP2, 
+                                                potential: analyzeMatchPotential(statsP1, statsP2) 
+                                            };
+                                        }
+
+                                        return (
+                                            <LiveGameCard 
+                                                key={g.id} 
+                                                game={g} 
+                                                leagueColor={conf.color}
+                                                stats={comboStats}
+                                                loadingStats={!statsP1 || !statsP2}
+                                            />
+                                        );
+                                    })}
                                 </div>
                             </div>
                         );
@@ -426,29 +347,25 @@ export const LiveGames: React.FC = () => {
                 </div>
             )}
 
-            {finishedGames.length > 0 && (
+            {finished.length > 0 && (
                 <div className="mt-10 border-t border-white/5 pt-8">
                     <div className="flex items-center gap-2 mb-4 px-1 opacity-70">
                         <div className="w-1 h-6 rounded-full bg-purple-400"></div>
                         <h3 className="font-bold text-lg text-white">Finalizados Recentes</h3>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {finishedGames.slice(0, 9).map((game) => {
-                            const leagueColor = getLeagueConfig(game.league.name).color;
-                            return (
-                                <Card key={`finished-${game.id}`} className="border-l-4 p-4 bg-white/5 hover:bg-white/10 transition-colors" style={{ borderLeftColor: leagueColor }}>
-                                    <div className="flex justify-between items-center mb-2">
-                                        <span className="text-xs font-mono text-textMuted">FT</span>
-                                        <span className="text-xs px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 font-bold">FINALIZADO</span>
-                                    </div>
-                                    <div className="text-white font-mono font-bold text-center text-lg">{game.ss}</div>
-                                    <div className="text-[11px] text-textMuted mt-2 flex justify-between">
-                                        <span className="truncate max-w-[45%]">{extractPlayerName(game.home.name)}</span>
-                                        <span className="truncate max-w-[45%] text-right">{extractPlayerName(game.away.name)}</span>
-                                    </div>
-                                </Card>
-                            );
-                        })}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {finished.map(g => (
+                            <Card key={g.id} className="p-3 bg-white/5 hover:bg-white/10 border-l-4" style={{ borderLeftColor: getLeagueConfig(g.league.name).color }}>
+                                <div className="flex justify-between items-center text-[10px] text-textMuted mb-2">
+                                    <span>FINALIZADO</span>
+                                    <span className="font-mono font-bold text-white text-base">{g.ss}</span>
+                                </div>
+                                <div className="flex justify-between text-xs">
+                                    <span className="truncate max-w-[45%]">{extractPlayerName(g.home.name)}</span>
+                                    <span className="truncate max-w-[45%] text-right">{extractPlayerName(g.away.name)}</span>
+                                </div>
+                            </Card>
+                        ))}
                     </div>
                 </div>
             )}
