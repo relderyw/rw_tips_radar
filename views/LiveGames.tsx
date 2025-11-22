@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { fetchLiveGames, fetchPlayerHistory } from '../services/api';
 import { LiveGame, MatchPotential, HistoryPlayerStats } from '../types';
@@ -56,7 +55,7 @@ const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string
     );
 };
 
-// Component: Compact Signal Badge (Only shows if stat is good)
+// New Component: Compact Signal Badge (Only shows if stat is good)
 const StatSignal: React.FC<{ label: string; val: number; threshold: number; color: string; icon?: React.ReactNode }> = ({ label, val, threshold, color, icon }) => {
     if (val < threshold) return null; // Don't show if not relevant (Clean UI)
     
@@ -107,7 +106,7 @@ const LiveGameCard: React.FC<{
     let borderColor = leagueColor;
     let ringClass = '';
 
-    // Top Badges (Priority Display)
+    // Top Badges
     if (potential === 'top_clash') {
         borderColor = '#ef4444';
         ringClass = 'ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]';
