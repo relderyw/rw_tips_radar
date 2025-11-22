@@ -4,7 +4,7 @@ import { LiveGame, MatchPotential, HistoryPlayerStats } from '../types';
 import { Card } from '../components/ui/Card';
 import { getLeagueConfig } from '../utils/format';
 import { calculateHistoryPlayerStats, analyzeMatchPotential } from '../utils/stats';
-import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2, Crosshair, Repeat } from 'lucide-react';
+import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2, Repeat } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // --- Interfaces ---
@@ -106,7 +106,7 @@ const LiveGameCard: React.FC<{
     let borderColor = leagueColor;
     let ringClass = '';
 
-    // Top Badges
+    // Top Badges Logic
     if (potential === 'top_clash') {
         borderColor = '#ef4444';
         ringClass = 'ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]';
