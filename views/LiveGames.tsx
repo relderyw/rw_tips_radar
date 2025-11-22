@@ -192,11 +192,20 @@ const LiveGameCard: React.FC<{
                                 <SignalBadge label="TOP FT" color="text-emerald-400 border-emerald-500/30" icon={<Rocket size={10}/>} />
                             )}
 
-                            {/* Individual High Stats (Clean) */}
-                            {(stats.p1.htOver05Pct >= 90 || stats.p2.htOver05Pct >= 90) && (
+                            {/* Individual High Stats (Expanded - Sniper threshold >85%) */}
+                            {(stats.p1.htOver05Pct >= 85 || stats.p2.htOver05Pct >= 85) && (
                                 <SignalBadge label="HT+" color="text-blue-300 border-blue-500/30" />
                             )}
-                            {(stats.p1.bttsPct >= 80 || stats.p2.bttsPct >= 80) && (
+                            {(stats.p1.htOver15Pct >= 85 || stats.p2.htOver15Pct >= 85) && (
+                                <SignalBadge label="HT 1.5+" color="text-yellow-300 border-yellow-500/30" icon={<Zap size={10}/>} />
+                            )}
+                            {(stats.p1.ftOver25Pct >= 85 || stats.p2.ftOver25Pct >= 85) && (
+                                <SignalBadge label="FT 2.5+" color="text-emerald-300 border-emerald-500/30" icon={<Rocket size={10}/>} />
+                            )}
+                            {(stats.p1.ftOver35Pct && stats.p1.ftOver35Pct >= 85) || (stats.p2.ftOver35Pct && stats.p2.ftOver35Pct >= 85) ? (
+                                <SignalBadge label="FT 3.5+" color="text-emerald-400 border-emerald-500/30" icon={<Rocket size={10}/>} />
+                            ) : null}
+                            {(stats.p1.bttsPct >= 85 || stats.p2.bttsPct >= 85) && (
                                 <SignalBadge label="BTTS" color="text-purple-300 border-purple-500/30" icon={<Repeat size={10}/>} />
                             )}
                         </div>

@@ -152,7 +152,7 @@ export const calculateHistoryPlayerStats = (matches: HistoryMatch[], player: str
 
     let totalGoalsHT = 0, totalGoalsFT = 0, totalScored = 0, totalConceded = 0, totalScoredHT = 0, wins = 0;
     let htOver05 = 0, htOver15 = 0, htOver25 = 0, htBtts = 0; 
-    let ftOver15 = 0, ftOver25 = 0, btts = 0;
+    let ftOver15 = 0, ftOver25 = 0, ftOver35 = 0, btts = 0;
 
     playerMatches.forEach(m => {
         const isHome = m.home_player === player;
@@ -180,6 +180,7 @@ export const calculateHistoryPlayerStats = (matches: HistoryMatch[], player: str
         
         if (tFT > 1.5) ftOver15++;
         if (tFT > 2.5) ftOver25++;
+        if (tFT > 3.5) ftOver35++;
         if (sHome > 0 && sAway > 0) btts++;
     });
 
@@ -194,7 +195,7 @@ export const calculateHistoryPlayerStats = (matches: HistoryMatch[], player: str
         avgScoredHT: Number((totalScoredHT/total).toFixed(2)),
         avgConceded: Number((totalConceded/total).toFixed(2)),
         htOver05Pct: pct(htOver05), htOver15Pct: pct(htOver15), htOver25Pct: pct(htOver25), htBttsPct: pct(htBtts),
-        ftOver15Pct: pct(ftOver15), ftOver25Pct: pct(ftOver25), bttsPct: pct(btts), winPct: pct(wins)
+        ftOver15Pct: pct(ftOver15), ftOver25Pct: pct(ftOver25), ftOver35Pct: pct(ftOver35), bttsPct: pct(btts), winPct: pct(wins)
     };
 };
 

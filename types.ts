@@ -145,6 +145,7 @@ export interface HistoryPlayerStats {
     
     ftOver15Pct: number;
     ftOver25Pct: number;
+    ftOver35Pct?: number; // Added to suport FT 3.5+ signal
     bttsPct: number;
     winPct: number;
 }
