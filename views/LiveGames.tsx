@@ -4,7 +4,7 @@ import { LiveGame, MatchPotential, HistoryPlayerStats } from '../types';
 import { Card } from '../components/ui/Card';
 import { getLeagueConfig } from '../utils/format';
 import { calculateHistoryPlayerStats, analyzeMatchPotential } from '../utils/stats';
-import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2 } from 'lucide-react';
+import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2, Crosshair, Repeat } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // --- Interfaces ---
@@ -55,17 +55,18 @@ const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string
     );
 };
 
-const MiniStatBar: React.FC<{ label: string, val: number, highlight?: boolean }> = ({ label, val, highlight }) => (
-    <div className="flex justify-between items-center text-[9px] w-full">
-        <span className="text-textMuted uppercase font-bold">{label}</span>
-        <div className="flex items-center gap-1">
-            <div className="w-12 h-1.5 bg-black/30 rounded-full overflow-hidden">
-                <div style={{ width: `${val}%` }} className={`h-full ${val >= 80 ? 'bg-green-400' : 'bg-white/30'}`}></div>
-            </div>
-            <span className={`font-mono font-bold ${val >= 80 ? 'text-green-400' : 'text-white'}`}>{val}%</span>
+// New Component: Compact Signal Badge (Only shows if stat is good)
+const StatSignal: React.FC<{ label: string; val: number; threshold: number; color: string; icon?: React.ReactNode }> = ({ label, val, threshold, color, icon }) => {
+    if (val < threshold) return null; // Don't show if not relevant (Clean UI)
+    
+    return (
+        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${color}`}>
+            {icon}
+            <span>{label}</span>
+            {val === 100 && <span className="text-[8px]">★</span>}
         </div>
-    </div>
-);
+    );
+};
 
 const LiveGameCard: React.FC<{ 
     game: LiveGame; 
@@ -105,6 +106,7 @@ const LiveGameCard: React.FC<{
     let borderColor = leagueColor;
     let ringClass = '';
 
+    // Top Badges
     if (potential === 'top_clash') {
         borderColor = '#ef4444';
         ringClass = 'ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]';
@@ -132,6 +134,7 @@ const LiveGameCard: React.FC<{
                 </div>
             )}
 
+            {/* Score Board */}
             <div className="flex justify-between items-center mb-3 mt-1">
                 <div className="flex items-center gap-1 text-xs font-mono text-textMuted bg-black/20 px-2 py-0.5 rounded">
                     <Timer size={12} className={isLive ? 'text-green-400' : 'text-textMuted'} />
@@ -142,6 +145,7 @@ const LiveGameCard: React.FC<{
                 </div>
             </div>
 
+            {/* Teams Info */}
             <div className="space-y-2 mb-3">
                 <div className="flex justify-between items-center">
                     <div className="overflow-hidden">
@@ -158,27 +162,39 @@ const LiveGameCard: React.FC<{
                 </div>
             </div>
 
-            {/* ALWAYS SHOW METRICS if available */}
+            {/* SMART SIGNALS (Clean Layout) */}
             {loadingStats ? (
-                <div className="bg-black/20 rounded p-2 mb-2 flex justify-center text-[10px] text-textMuted gap-1">
-                    <Loader2 size={12} className="animate-spin" /> Analisando...
+                <div className="bg-black/20 rounded p-1 mb-2 flex justify-center text-[9px] text-textMuted gap-1 h-[26px] items-center">
+                    <Loader2 size={10} className="animate-spin" /> Analisando...
                 </div>
             ) : stats ? (
-                <div className="bg-black/20 rounded p-2 mb-2 space-y-1">
-                    <div className="flex justify-between text-[9px] border-b border-white/5 pb-1 mb-1">
-                        <div className="text-primary font-bold">{stats.p1.avgGoalsFT} <span className="text-textMuted font-normal">Avg</span></div>
-                        <div className="text-accent font-bold">{stats.p2.avgGoalsFT} <span className="text-textMuted font-normal">Avg</span></div>
+                <div className="mb-3">
+                    {/* Averages Row */}
+                    <div className="flex justify-between items-center bg-white/5 rounded px-2 py-1 mb-1.5">
+                        <span className={`text-[10px] font-mono font-bold ${stats.p1.avgGoalsFT >= 2.7 ? 'text-green-400' : 'text-textMuted'}`}>
+                            {stats.p1.avgGoalsFT}
+                        </span>
+                        <span className="text-[8px] uppercase text-textMuted font-bold">Médias FT</span>
+                        <span className={`text-[10px] font-mono font-bold ${stats.p2.avgGoalsFT >= 2.7 ? 'text-green-400' : 'text-textMuted'}`}>
+                            {stats.p2.avgGoalsFT}
+                        </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-0.5">
-                            <MiniStatBar label="HT 0.5" val={stats.p1.htOver05Pct} />
-                            <MiniStatBar label="BTTS" val={stats.p1.bttsPct} />
-                        </div>
-                        <div className="space-y-0.5">
-                            <MiniStatBar label="HT 0.5" val={stats.p2.htOver05Pct} />
-                            <MiniStatBar label="BTTS" val={stats.p2.bttsPct} />
-                        </div>
+
+                    {/* Signals Row - Only High Probability Tags */}
+                    <div className="flex flex-wrap justify-center gap-1.5">
+                        {/* Player 1 Signals */}
+                        <StatSignal label="HT+" val={stats.p1.htOver05Pct} threshold={90} color="bg-blue-500/10 text-blue-400 border-blue-500/20" />
+                        <StatSignal label="BTTS" val={stats.p1.bttsPct} threshold={75} color="bg-purple-500/10 text-purple-400 border-purple-500/20" icon={<Repeat size={8}/>} />
+                        
+                        {/* Player 2 Signals */}
+                        <StatSignal label="HT+" val={stats.p2.htOver05Pct} threshold={90} color="bg-blue-500/10 text-blue-400 border-blue-500/20" />
+                        <StatSignal label="BTTS" val={stats.p2.bttsPct} threshold={75} color="bg-purple-500/10 text-purple-400 border-purple-500/20" icon={<Repeat size={8}/>} />
                     </div>
+                    
+                    {/* Empty State if no good stats */}
+                    {stats.p1.htOver05Pct < 90 && stats.p2.htOver05Pct < 90 && stats.p1.bttsPct < 75 && stats.p2.bttsPct < 75 && (
+                        <div className="text-center text-[9px] text-textMuted/50 italic py-0.5">Sem tendências fortes</div>
+                    )}
                 </div>
             ) : null}
 
@@ -198,7 +214,6 @@ export const LiveGames: React.FC = () => {
     const previousScores = useRef<Record<string, string>>({});
     const isFirstLoad = useRef(true);
 
-    // Batch fetch player stats
     const fetchMissingStats = async (liveGames: LiveGame[]) => {
         const playersToFetch = new Set<string>();
         
@@ -212,7 +227,6 @@ export const LiveGames: React.FC = () => {
 
         if (playersToFetch.size === 0) return;
 
-        // Limit concurrency
         const queue = Array.from(playersToFetch);
         const BATCH_SIZE = 3;
         
@@ -254,7 +268,6 @@ export const LiveGames: React.FC = () => {
             isFirstLoad.current = false;
         }
         
-        // Trigger background stats fetch
         fetchMissingStats(data);
     };
 
