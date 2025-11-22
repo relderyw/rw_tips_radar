@@ -16,6 +16,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { path: '/live', label: 'Ao Vivo', icon: <Radio size={20} className={location.pathname === '/live' ? 'animate-pulse' : ''} /> },
     { path: '/players', label: 'Métricas de Players', icon: <Users size={20} /> },
     { path: '/h2h', label: 'Head to Head', icon: <Swords size={20} /> },
+    { path: '/tendencias', label: 'Tendencias', icon: <ArrowRight size={20} /> },
   ];
 
   return (

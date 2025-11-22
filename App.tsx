@@ -7,6 +7,7 @@ import { Overview } from './views/Overview';
 import { PlayerMetrics } from './views/PlayerMetrics';
 import { H2H } from './views/H2H';
 import { LiveGames } from './views/LiveGames';
+import { Tendencias } from './views/Tendencias';
 import { Menu } from 'lucide-react';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -57,6 +58,7 @@ function App() {
                <Route path="/live" element={<LiveGames />} />
                <Route path="/players" element={<PlayerMetrics />} />
                <Route path="/h2h" element={<H2H />} />
+               <Route path="/tendencias" element={<Tendencias />} />
             </Routes>
          </Layout>
       </HashRouter>
