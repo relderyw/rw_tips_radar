@@ -48,6 +48,8 @@ export interface ProcessedGame {
   isBTTS_HT: boolean;
 }
 
+export type PlayerVerdict = 'sniper' | 'troll' | 'wall' | 'neutral';
+
 export interface PlayerMetrics {
   player: string;
   league: string;
@@ -80,6 +82,9 @@ export interface PlayerMetrics {
   ftBttsPct: number;
   
   winPct: number;
+  
+  // New Analysis Field
+  verdict: PlayerVerdict;
 }
 
 export interface H2HMatch {
@@ -189,4 +194,7 @@ export interface LiveGame {
     ss: string; // score string "2-1"
     timer: LiveTimer;
     scores: any;
+    
+    // Optional computed fields
+    isSuperClash?: boolean;
 }
