@@ -2,26 +2,43 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { fetchHistoryGames, fetchPlayerHistory } from '../services/api';
 import { HistoryMatch } from '../types';
-import { TrendingUp, AlertTriangle, CheckCircle2, XCircle, Flame, ShieldAlert, Target } from 'lucide-react';
+import { TrendingUp, AlertTriangle, CheckCircle2, XCircle, Flame, ShieldAlert, Target, Clock, Activity, Shield } from 'lucide-react';
 
 // --- Types ---
 
 type TrendType = 
-  | 'STREAK_BREAKER_ACTIVE' // 4 games HT, 5th broke (User's specific request)
-  | 'STREAK_JUST_BROKEN'    // 4 games HT, most recent broke
-  | 'HT_WIN_FT_FAIL'        // Wins HT, Fails FT
-  | 'OVER_25_TRAIN'         // 4+ games Over 2.5
-  | 'BTTS_TRAIN'            // 4+ games BTTS
-  | 'SNIPER_FT'             // Low HT goals, High FT goals
+  | 'STREAK_BREAKER_ACTIVE' 
+  | 'STREAK_JUST_BROKEN'    
+  | 'HT_WIN_FT_FAIL'        
+  | 'OVER_25_TRAIN'         
+  | 'BTTS_TRAIN'            
+  | 'SLOW_STARTER'          // Low HT goals, High Recovery
+  | 'HT_DOMINATOR'          // High HT Win Rate
+  | 'GLASS_DEFENSE'         // High Conceded
   | 'NONE';
+
+interface PlayerStats {
+  avgScoredFT: number;
+  avgConcededFT: number;
+  winsHT: number;
+  drawsHT: number;
+  lossesHT: number;
+  winsFT: number;
+  drawsFT: number;
+  lossesFT: number;
+  htScoringRate: number; // % of games with HT goal
+  recoveryRate: number; // Avg FT goals when HT goals == 0
+  cleanSheets: number;
+}
 
 interface PlayerTrend {
   player: string;
   league: string;
   last5: HistoryMatch[];
+  stats: PlayerStats;
   trends: {
     type: TrendType;
-    confidence: number; // 0-100
+    confidence: number;
     description: string;
     stats: { label: string; value: string | number }[];
   }[];
@@ -48,19 +65,57 @@ const getMatchStats = (player: string, m: HistoryMatch) => {
 const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]): PlayerTrend | null => {
   if (!matches || matches.length < 5) return null;
 
-  // Sort by date desc just in case, then take 5
   const last5 = matches.slice(0, 5);
   const games = last5.map(m => getMatchStats(player, m));
 
+  // --- Calculate Deep Stats ---
+  let totalScored = 0;
+  let totalConceded = 0;
+  let winsHT = 0, drawsHT = 0, lossesHT = 0;
+  let winsFT = 0, drawsFT = 0, lossesFT = 0;
+  let htGoalsCount = 0; // Games with at least 1 HT goal
+  let zeroHtGames = 0;
+  let ftGoalsAfterZeroHt = 0;
+  let cleanSheets = 0;
+
+  games.forEach(g => {
+    totalScored += g.ftSelf;
+    totalConceded += g.ftOpp;
+
+    if (g.htSelf > g.htOpp) winsHT++;
+    else if (g.htSelf === g.htOpp) drawsHT++;
+    else lossesHT++;
+
+    if (g.ftSelf > g.ftOpp) winsFT++;
+    else if (g.ftSelf === g.ftOpp) drawsFT++;
+    else lossesFT++;
+
+    if (g.htSelf > 0) htGoalsCount++;
+    else {
+      zeroHtGames++;
+      ftGoalsAfterZeroHt += g.ftSelf;
+    }
+
+    if (g.ftOpp === 0) cleanSheets++;
+  });
+
+  const stats: PlayerStats = {
+    avgScoredFT: Number((totalScored / 5).toFixed(1)),
+    avgConcededFT: Number((totalConceded / 5).toFixed(1)),
+    winsHT, drawsHT, lossesHT,
+    winsFT, drawsFT, lossesFT,
+    htScoringRate: Math.round((htGoalsCount / 5) * 100),
+    recoveryRate: zeroHtGames > 0 ? Number((ftGoalsAfterZeroHt / zeroHtGames).toFixed(1)) : 0,
+    cleanSheets
+  };
+
   const detectedTrends: PlayerTrend['trends'] = [];
 
-  // 1. Streak Breaker (User Request: "Last 4 games HT, 5th broke")
-  // Interpretation: Games [0,1,2,3] are the "Last 4" (Most Recent). Game [4] is the "5th".
-  // Pattern: [HT, HT, HT, HT] (Recent) <- [NO HT] (5th game)
+  // 1. Streak Breaker
   const recent4 = games.slice(0, 4);
   const game5 = games[4];
   const isStreak4 = recent4.every(g => g.htSelf > 0);
-  const isGame5Break = game5.htSelf === 0 && game5.ftSelf > 0; // No HT, but scored FT
+  const isGame5Break = game5.htSelf === 0 && game5.ftSelf > 0;
 
   if (isStreak4 && isGame5Break) {
     const avgHt = (recent4.reduce((acc, g) => acc + g.htSelf, 0) / 4).toFixed(2);
@@ -75,8 +130,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
     });
   }
 
-  // 2. Just Broken (User Request Variation: "Streak of 4, then broke")
-  // Pattern: [NO HT] (Most Recent) <- [HT, HT, HT, HT]
+  // 2. Just Broken
   const game0 = games[0];
   const prev4 = games.slice(1, 5);
   const isPrev4Streak = prev4.every(g => g.htSelf > 0);
@@ -96,9 +150,8 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
   }
 
   // 3. HT Win / FT Fail
-  // Winning at HT but NOT winning at FT
   const htWinFtFailCount = games.filter(g => (g.htSelf > g.htOpp) && (g.ftSelf <= g.ftOpp)).length;
-  if (htWinFtFailCount >= 2) { // 2 out of 5 is significant enough to warn
+  if (htWinFtFailCount >= 2) {
     detectedTrends.push({
       type: 'HT_WIN_FT_FAIL',
       confidence: htWinFtFailCount >= 3 ? 85 : 60,
@@ -119,7 +172,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
       description: 'Tendência forte de Over 2.5',
       stats: [
         { label: 'Jogos Over', value: `${over25Count}/5` },
-        { label: 'Média Gols', value: (games.reduce((a,b)=>a+b.totalFT,0)/5).toFixed(1) }
+        { label: 'Média Gols', value: stats.avgScoredFT }
       ]
     });
   }
@@ -137,15 +190,52 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
     });
   }
 
+  // 6. Slow Starter
+  if (stats.htScoringRate <= 40 && stats.recoveryRate >= 1.5) {
+    detectedTrends.push({
+      type: 'SLOW_STARTER',
+      confidence: 80,
+      description: 'Marca pouco no HT, mas recupera bem',
+      stats: [
+        { label: 'HT Rate', value: `${stats.htScoringRate}%` },
+        { label: 'Recuperação', value: stats.recoveryRate }
+      ]
+    });
+  }
+
+  // 7. HT Dominator
+  if (stats.winsHT >= 4) {
+    detectedTrends.push({
+      type: 'HT_DOMINATOR',
+      confidence: 85,
+      description: 'Domina o primeiro tempo',
+      stats: [
+        { label: 'Vitórias HT', value: `${stats.winsHT}/5` }
+      ]
+    });
+  }
+
+  // 8. Glass Defense
+  if (stats.avgConcededFT >= 2.5) {
+    detectedTrends.push({
+      type: 'GLASS_DEFENSE',
+      confidence: 80,
+      description: 'Defesa frágil (Muitos gols sofridos)',
+      stats: [
+        { label: 'Média Sofridos', value: stats.avgConcededFT }
+      ]
+    });
+  }
+
   if (detectedTrends.length === 0) return null;
 
-  // Sort trends by confidence
   detectedTrends.sort((a, b) => b.confidence - a.confidence);
 
   return {
     player,
     league,
     last5,
+    stats,
     trends: detectedTrends
   };
 };
@@ -157,7 +247,6 @@ const MatchMiniature: React.FC<{ player: string; match: HistoryMatch }> = ({ pla
   const isWin = stats.ftSelf > stats.ftOpp;
   const isDraw = stats.ftSelf === stats.ftOpp;
   
-  // Color logic: Green for Win, Gray for Draw, Red for Loss
   const bgColor = isWin ? 'bg-emerald-500/20 border-emerald-500/30' : 
                   isDraw ? 'bg-white/10 border-white/10' : 
                   'bg-red-500/20 border-red-500/30';
@@ -186,6 +275,12 @@ const TrendBadge: React.FC<{ type: TrendType }> = ({ type }) => {
       return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30"><TrendingUp size={10} /> OVER 2.5</span>;
     case 'BTTS_TRAIN':
       return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30"><Target size={10} /> BTTS</span>;
+    case 'SLOW_STARTER':
+      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"><Clock size={10} /> DIESEL</span>;
+    case 'HT_DOMINATOR':
+      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"><Activity size={10} /> REI DO HT</span>;
+    case 'GLASS_DEFENSE':
+      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30"><Shield size={10} /> DEFESA VAZADA</span>;
     default:
       return null;
   }
@@ -213,7 +308,6 @@ export const Tendencias: React.FC = () => {
       });
       setPlayersByLeague(map);
 
-      // Auto-select first league if current is invalid
       if (leagues.length > 0 && (!leagues.includes(league) || league === 'A')) {
          if (leagues.includes('A')) setLeague('A');
          else setLeague(leagues[0]);
@@ -225,7 +319,7 @@ export const Tendencias: React.FC = () => {
   const loadTrends = async () => {
     const playerSet: Set<string> = playersByLeague[league] ?? new Set<string>();
     const players: string[] = Array.from(playerSet);
-    const limited = players.slice(0, 40); // Increased limit slightly
+    const limited = players.slice(0, 40); 
     setLoading(true);
     
     const out: PlayerTrend[] = [];
@@ -240,7 +334,6 @@ export const Tendencias: React.FC = () => {
       batchResults.forEach(t => { if (t) out.push(t); });
     }
 
-    // Sort by confidence of the top trend
     out.sort((a, b) => b.trends[0].confidence - a.trends[0].confidence);
 
     setResults(out);
@@ -319,14 +412,30 @@ export const Tendencias: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-px bg-white/5">
-                  {primaryTrend.stats.map((stat, idx) => (
-                    <div key={idx} className="bg-surface p-3 flex flex-col items-center justify-center text-center">
-                      <span className="text-[10px] text-textMuted uppercase font-bold tracking-wider mb-1">{stat.label}</span>
-                      <span className="text-white font-mono font-bold">{stat.value}</span>
+                {/* Detailed Stats Grid */}
+                <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/5">
+                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                        <span className="text-[9px] text-textMuted uppercase font-bold">Gols Feitos</span>
+                        <span className="text-white font-mono font-bold text-xs">{r.stats.avgScoredFT}</span>
                     </div>
-                  ))}
+                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                        <span className="text-[9px] text-textMuted uppercase font-bold">Gols Sofridos</span>
+                        <span className="text-white font-mono font-bold text-xs">{r.stats.avgConcededFT}</span>
+                    </div>
+                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                        <span className="text-[9px] text-textMuted uppercase font-bold">Recuperação</span>
+                        <span className="text-white font-mono font-bold text-xs">{r.stats.recoveryRate}</span>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5">
+                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                        <span className="text-[9px] text-textMuted uppercase font-bold">Recorde HT</span>
+                        <span className="text-white font-mono font-bold text-xs text-emerald-400">{r.stats.winsHT}-{r.stats.drawsHT}-{r.stats.lossesHT}</span>
+                    </div>
+                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                        <span className="text-[9px] text-textMuted uppercase font-bold">Recorde FT</span>
+                        <span className="text-white font-mono font-bold text-xs text-accent">{r.stats.winsFT}-{r.stats.drawsFT}-{r.stats.lossesFT}</span>
+                    </div>
                 </div>
 
                 {/* Visual History */}
@@ -336,13 +445,6 @@ export const Tendencias: React.FC = () => {
                     <span className="text-[10px] text-textMuted">(Mais recente à direita)</span>
                   </div>
                   <div className="flex justify-between gap-2">
-                    {/* Reverse to show oldest -> newest (left -> right) or newest -> oldest? 
-                        Usually "Last 5" implies Newest on Left or Right. 
-                        Let's show Newest on RIGHT to visualize the "Flow" of time -> 
-                        Actually, standard is usually Newest Left. 
-                        Let's stick to the array order (Newest is index 0).
-                        So we map reverse to show Oldest -> Newest (Left -> Right)
-                    */}
                     {[...r.last5].reverse().map((m, i) => (
                       <MatchMiniature key={i} player={r.player} match={m} />
                     ))}
