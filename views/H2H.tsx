@@ -5,14 +5,14 @@ import { H2HResponse, HistoryMatch, HistoryPlayerStats, LeagueStats, Projection 
 import { calculateH2HStats, calculateHistoryPlayerStats, calculateLeagueStatsFromHistory, generateProjections } from '../utils/stats';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { Swords, AlertCircle, RefreshCw, BrainCircuit, Target, Scale, ChevronDown, Search, X, Zap, TrendingUp } from 'lucide-react';
+import { Swords, AlertCircle, RefreshCw, BrainCircuit, Target, Scale, ChevronDown, Search, X, Zap } from 'lucide-react';
 import { formatDateSafe } from '../utils/format';
 import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
 import { useSearchParams } from 'react-router-dom';
 
 // --- Visual Components ---
 
-// 1. Player Consistency Chart (Area Chart)
+// 1. Player Consistency Chart
 const PlayerConsistencyChart: React.FC<{ matches: HistoryMatch[], playerName: string, color: string }> = ({ matches, playerName, color }) => {
     const data = useMemo(() => {
         const chronological = [...matches].reverse();
@@ -300,7 +300,6 @@ export const H2H: React.FC = () => {
         load();
     }, []);
 
-    // Auto-trigger logic from URL
     useEffect(() => {
         const league = searchParams.get('league');
         const p1 = searchParams.get('p1');
@@ -310,7 +309,6 @@ export const H2H: React.FC = () => {
             setSelectedLeague(league);
             setPlayer1(p1);
             setPlayer2(p2);
-            // Wait a tiny bit for state to set then trigger compare
             setTimeout(() => {
                 handleCompare(league, p1, p2);
             }, 100);
@@ -478,7 +476,6 @@ export const H2H: React.FC = () => {
                                     <div className="text-center text-textMuted italic py-4">Sem jogos H2H suficientes</div>
                                 )}
 
-                                {/* Simplest possible individual form comparison to fill space */}
                                 <div className="mt-8 pt-6 border-t border-white/5">
                                     <div className="text-center text-[10px] text-textMuted uppercase font-bold mb-3">Comparativo de Forma (Geral)</div>
                                     <div className="flex justify-between text-xs px-2">

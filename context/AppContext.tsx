@@ -20,6 +20,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const loadData = async () => {
     setLoading(true);
     try {
+      // This now calls the updated fetchGames which gets 10 pages from history API
       const rawGames = await fetchGames();
       const processed = processRawGames(rawGames);
       setGames(processed);
@@ -35,6 +36,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     loadData();
+    // Auto-refresh every 2 minutes (120 seconds)
+    const interval = setInterval(loadData, 120000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
