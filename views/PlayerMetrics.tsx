@@ -12,7 +12,7 @@ export const PlayerMetrics: React.FC = () => {
   const [selectedLeague, setSelectedLeague] = useState<string>('');
   const [windowSize, setWindowSize] = useState(10);
   const [search, setSearch] = useState('');
-  const [trendFilter, setTrendFilter] = useState<'all' | 'sniper' | 'troll' | 'neutral'>('all');
+  const [trendFilter, setTrendFilter] = useState<'all' | 'sniper' | 'troll' | 'wall' | 'neutral'>('all');
   const [sortConfig, setSortConfig] = useState<{ key: keyof IPlayerMetrics; direction: 'asc' | 'desc' }>({ key: 'ftOver25Pct', direction: 'desc' });
 
   const metricsData = useMemo(() => {
@@ -44,9 +44,7 @@ export const PlayerMetrics: React.FC = () => {
 
     // Trend Filter
     if (trendFilter !== 'all') {
-        if (trendFilter === 'sniper') data = data.filter(m => m.verdict === 'sniper');
-        else if (trendFilter === 'troll') data = data.filter(m => m.verdict === 'troll' || m.verdict === 'wall');
-        else if (trendFilter === 'neutral') data = data.filter(m => m.verdict === 'neutral');
+        data = data.filter(m => m.verdict === trendFilter);
     }
 
     // Sorting
@@ -116,7 +114,8 @@ export const PlayerMetrics: React.FC = () => {
                     >
                         <option value="all">Todos</option>
                         <option value="sniper">🔥 Over (Sniper)</option>
-                        <option value="troll">🤡 Under/Troll</option>
+                        <option value="troll">🤡 Troll</option>
+                        <option value="wall">🛡️ Under</option>
                         <option value="neutral">😐 Neutros</option>
                     </select>
                 </div>

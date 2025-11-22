@@ -36,6 +36,7 @@ export const processRawGames = (games: any[]): ProcessedGame[] => {
   });
 };
 
+// Determines if a player is "Sniper" (Over), "Troll" (Inconsistent), etc.
 const calculatePlayerVerdict = (
     ftOver25Pct: number, 
     bttsPct: number, 
@@ -43,8 +44,8 @@ const calculatePlayerVerdict = (
     avgGoalsFT: number
 ): PlayerVerdict => {
     if (ftOver25Pct >= 80 && bttsPct >= 75 && avgGoalsFT >= 3.0) return 'sniper';
-    if (avgGoalsFT <= 2.2 || ftOver25Pct <= 40) return 'wall';
-    if (htOver05Pct <= 60 && ftOver25Pct >= 70) return 'troll';
+    if (avgGoalsFT <= 2.2 || ftOver25Pct <= 40) return 'wall'; // Under
+    if (htOver05Pct <= 60 && ftOver25Pct >= 70) return 'troll'; // Late scorer, dangerous HT
     return 'neutral';
 };
 
@@ -83,26 +84,58 @@ export const calculatePlayerMetrics = (games: ProcessedGame[], player: string, w
 
   const toPct = (val: number) => Math.round((val / recent.length) * 100);
   const avgGoalsFT = parseFloat((totalGoalsFT / recent.length).toFixed(2));
-  
+  const avgGoalsHT = parseFloat((totalGoalsHT / recent.length).toFixed(2));
+  const ftOver25Pct = toPct(ftOver25);
+  const bttsPct = toPct(ftBtts);
+  const htOver05Pct = toPct(htOver05);
+
+  const verdict = calculatePlayerVerdict(ftOver25Pct, bttsPct, htOver05Pct, avgGoalsFT);
+
   return {
     player, league, games: recent.length,
     htOver05, htOver15, htOver25, htBtts,
     ftOver05, ftOver15, ftOver25, ftOver35, ftBtts,
     wins,
-    avgGoalsHT: parseFloat((totalGoalsHT / recent.length).toFixed(2)),
+    avgGoalsHT,
     avgGoalsFT,
-    htOver05Pct: toPct(htOver05),
+    htOver05Pct,
     htOver15Pct: toPct(htOver15),
     htOver25Pct: toPct(htOver25),
     htBttsPct: toPct(htBtts),
     ftOver05Pct: toPct(ftOver05),
     ftOver15Pct: toPct(ftOver15),
-    ftOver25Pct: toPct(ftOver25),
+    ftOver25Pct,
     ftOver35Pct: toPct(ftOver35),
-    ftBttsPct: toPct(ftBtts),
+    ftBttsPct: bttsPct,
     winPct: toPct(wins),
-    verdict: calculatePlayerVerdict(toPct(ftOver25), toPct(ftBtts), toPct(htOver05), avgGoalsFT)
+    verdict
   };
+};
+
+// Checks if a live match is a "Super Clash" based on strict criteria
+export const checkSuperClash = (p1: HistoryPlayerStats, p2: HistoryPlayerStats): boolean => {
+    // Criteria:
+    // Over 0.5 HT = 100% (Both players)
+    // Over 1.5 HT >= 95%
+    // BTTS FT = 100%
+    // Over 1.5 FT = 100%
+    // Over 2.5 FT >= 95%
+    // Avg Player 1 >= 2.7 & Avg Player 2 >= 2.7
+
+    const avgHt05 = (p1.htOver05Pct + p2.htOver05Pct) / 2;
+    const avgHt15 = (p1.htOver15Pct + p2.htOver15Pct) / 2;
+    const avgBttsFt = (p1.bttsPct + p2.bttsPct) / 2;
+    const avgFt15 = (p1.ftOver15Pct + p2.ftOver15Pct) / 2;
+    const avgFt25 = (p1.ftOver25Pct + p2.ftOver25Pct) / 2;
+
+    if (p1.htOver05Pct < 100 || p2.htOver05Pct < 100) return false;
+    if (avgHt15 < 95) return false;
+    if (p1.bttsPct < 100 || p2.bttsPct < 100) return false;
+    if (p1.ftOver15Pct < 100 || p2.ftOver15Pct < 100) return false;
+    if (avgFt25 < 95) return false;
+    if (p1.avgGoalsFT < 2.7 || p2.avgGoalsFT < 2.7) return false;
+
+    return true;
 };
 
 export const calculateH2HStats = (matches: H2HMatch[], player1: string, player2: string) => {
@@ -217,50 +250,29 @@ export const calculateLeagueStatsFromHistory = (matches: HistoryMatch[], league:
     return { name: league, avgGoalsHT: Number((totalHT/total).toFixed(2)), avgGoalsFT: Number((totalFT/total).toFixed(2)), htOver05Pct: pct(ht05), htOver15Pct: pct(ht15), ftOver25Pct: pct(ft25), bttsPct: pct(btts) };
 };
 
-export const checkSuperClash = (p1: HistoryPlayerStats, p2: HistoryPlayerStats): boolean => {
-    const avgHt05 = (p1.htOver05Pct + p2.htOver05Pct) / 2;
-    const avgHt15 = (p1.htOver15Pct + p2.htOver15Pct) / 2;
-    const avgBtts = (p1.bttsPct + p2.bttsPct) / 2;
-    const avgFt15 = (p1.ftOver15Pct + p2.ftOver15Pct) / 2;
-    const avgFt25 = (p1.ftOver25Pct + p2.ftOver25Pct) / 2;
-    
-    return (
-        p1.htOver05Pct === 100 && p2.htOver05Pct === 100 &&
-        avgHt15 >= 95 &&
-        p1.bttsPct === 100 && p2.bttsPct === 100 &&
-        avgFt15 === 100 &&
-        avgFt25 >= 95 &&
-        p1.avgScored >= 2.7 && p2.avgScored >= 2.7
-    );
-};
-
 export const generateProjections = (h2hStats: any, p1Stats: HistoryPlayerStats, p2Stats: HistoryPlayerStats, leagueStats: LeagueStats): Projection[] => {
     const projections: Projection[] = [];
-    const checkLine = (market: string, h2h: number, p1: number, p2: number, lg: number) => {
+    const checkLine = (market: string, h2h: number, p1: number, p2: number, lg: number, th: number) => {
         const avgP = (p1+p2)/2;
         let prob = (h2hStats && h2hStats.total > 0) ? (h2h*0.4 + avgP*0.4 + lg*0.2) : (avgP*0.7 + lg*0.3);
         prob = Math.round(prob);
         const risk = (p1 > 70 && p2 > 70 && lg < 55);
         if (prob >= 65) {
             const r = [];
-            if (h2hStats && h2hStats.total > 0) {
-                if (h2h >= 80) r.push(`H2H Forte (${h2h}%)`);
-                else if (h2h <= 40) r.push(`Atenção: H2H baixo (${h2h}%)`);
-            }
-            if (p1 >= 75) r.push(`${p1Stats.player} vem com ${p1}%`);
-            if (p2 >= 75) r.push(`${p2Stats.player} vem com ${p2}%`);
-            if (risk) r.push(`⚠️ Liga tem média baixa (${lg}%)`);
-            
+            if (h2h >= 80) r.push(`H2H Forte: ${h2h}%`);
+            if (p1 >= 75) r.push(`${p1Stats.player}: ${p1}%`);
+            if (p2 >= 75) r.push(`${p2Stats.player}: ${p2}%`);
+            if (risk) r.push(`⚠️ Liga Baixa (${lg}%)`);
             projections.push({ market, probability: prob, confidence: prob >= 80 ? 'High' : 'Medium', reasoning: r, riskFactor: risk });
         }
     };
     if (h2hStats?.ht) {
-        checkLine('Over 0.5 HT', h2hStats.ht.over05Pct, p1Stats.htOver05Pct, p2Stats.htOver05Pct, leagueStats.htOver05Pct);
-        checkLine('BTTS HT', h2hStats.ht.bttsPct, p1Stats.htBttsPct, p2Stats.htBttsPct, leagueStats.bttsPct);
+        checkLine('Over 0.5 HT', h2hStats.ht.over05Pct, p1Stats.htOver05Pct, p2Stats.htOver05Pct, leagueStats.htOver05Pct, 80);
+        checkLine('BTTS HT', h2hStats.ht.bttsPct, p1Stats.htBttsPct, p2Stats.htBttsPct, leagueStats.bttsPct, 60); 
     }
     if (h2hStats?.ft) {
-        checkLine('Over 2.5 FT', h2hStats.ft.over25Pct, p1Stats.ftOver25Pct, p2Stats.ftOver25Pct, leagueStats.ftOver25Pct);
-        checkLine('BTTS FT', h2hStats.ft.bttsPct, p1Stats.bttsPct, p2Stats.bttsPct, leagueStats.bttsPct);
+        checkLine('Over 2.5 FT', h2hStats.ft.over25Pct, p1Stats.ftOver25Pct, p2Stats.ftOver25Pct, leagueStats.ftOver25Pct, 70);
+        checkLine('BTTS FT', h2hStats.ft.bttsPct, p1Stats.bttsPct, p2Stats.bttsPct, leagueStats.bttsPct, 70);
     }
     return projections.sort((a, b) => b.probability - a.probability);
 };

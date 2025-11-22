@@ -1,11 +1,10 @@
-
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { fetchLiveGames, fetchPlayerHistory } from '../services/api';
 import { LiveGame } from '../types';
 import { Card } from '../components/ui/Card';
 import { getLeagueConfig } from '../utils/format';
 import { calculateHistoryPlayerStats, checkSuperClash } from '../utils/stats';
-import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame } from 'lucide-react';
+import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Bell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // --- Types & Interfaces ---
@@ -95,6 +94,7 @@ const LiveGameCard: React.FC<{ game: LiveGame, leagueColor: string }> = ({ game,
             const p2 = extractPlayerName(game.away.name);
             
             try {
+                // Fetch last 10 games for robust stats
                 const [p1Hist, p2Hist] = await Promise.all([
                     fetchPlayerHistory(p1, 10),
                     fetchPlayerHistory(p2, 10)
