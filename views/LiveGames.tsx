@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { fetchLiveGames, fetchPlayerHistory } from '../services/api';
-import { LiveGame } from '../types';
+import { LiveGame, MatchPotential } from '../types';
 import { Card } from '../components/ui/Card';
 import { getLeagueConfig } from '../utils/format';
-import { calculateHistoryPlayerStats, checkSuperClash } from '../utils/stats';
-import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Bell } from 'lucide-react';
+import { calculateHistoryPlayerStats, analyzeMatchPotential } from '../utils/stats';
+import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // --- Types & Interfaces ---
@@ -71,9 +71,9 @@ const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string
 const LiveGameCard: React.FC<{ game: LiveGame, leagueColor: string }> = ({ game, leagueColor }) => {
     const navigate = useNavigate();
     const [isFlashing, setIsFlashing] = useState(false);
-    const [isSuperClash, setIsSuperClash] = useState(false);
+    const [potential, setPotential] = useState<MatchPotential>('none');
     const prevScoreRef = useRef(game.ss);
-    const hasCheckedClash = useRef(false);
+    const hasChecked = useRef(false);
 
     useEffect(() => {
         if (prevScoreRef.current !== game.ss) {
@@ -84,17 +84,16 @@ const LiveGameCard: React.FC<{ game: LiveGame, leagueColor: string }> = ({ game,
         }
     }, [game.ss]);
 
-    // Check for Super Clash (Background fetch history)
+    // Check for Match Potential (Background fetch)
     useEffect(() => {
-        const checkClash = async () => {
-            if (hasCheckedClash.current) return;
-            hasCheckedClash.current = true;
+        const check = async () => {
+            if (hasChecked.current) return;
+            hasChecked.current = true;
 
             const p1 = extractPlayerName(game.home.name);
             const p2 = extractPlayerName(game.away.name);
             
             try {
-                // Fetch last 10 games for robust stats
                 const [p1Hist, p2Hist] = await Promise.all([
                     fetchPlayerHistory(p1, 10),
                     fetchPlayerHistory(p2, 10)
@@ -103,17 +102,18 @@ const LiveGameCard: React.FC<{ game: LiveGame, leagueColor: string }> = ({ game,
                 const p1Stats = calculateHistoryPlayerStats(p1Hist, p1, 10);
                 const p2Stats = calculateHistoryPlayerStats(p2Hist, p2, 10);
 
-                if (p1Stats && p2Stats && checkSuperClash(p1Stats, p2Stats)) {
-                    setIsSuperClash(true);
+                if (p1Stats && p2Stats) {
+                    const result = analyzeMatchPotential(p1Stats, p2Stats);
+                    setPotential(result);
                 }
             } catch (e) {
-                console.warn("Failed to check super clash for live game", e);
+                console.warn("Failed to check potential for live game", e);
             }
         };
         
         // Only check if game is live
         if (game.time_status === '1' || game.time_status === 'live') {
-            checkClash();
+            check();
         }
     }, []);
 
@@ -129,38 +129,63 @@ const LiveGameCard: React.FC<{ game: LiveGame, leagueColor: string }> = ({ game,
     const homeTeam = extractTeamName(game.home.name);
     const awayTeam = extractTeamName(game.away.name);
 
-    // Status helpers
     const timeStatus = (game.time_status || '').toString().toLowerCase();
     const isLive = timeStatus === '1' || timeStatus === 'live';
     const isFinished = timeStatus === '3' || timeStatus.includes('ft') || timeStatus.includes('finish');
-    const statusClass = isLive
-        ? 'bg-green-500/20 text-green-400'
-        : isFinished
-        ? 'bg-purple-500/20 text-purple-400'
-        : 'bg-red-500/20 text-red-400';
+    
+    const statusClass = isLive ? 'bg-green-500/20 text-green-400' : isFinished ? 'bg-purple-500/20 text-purple-400' : 'bg-red-500/20 text-red-400';
     const statusLabel = isLive ? 'AO VIVO' : isFinished ? 'FINALIZADO' : 'AGENDADO';
+
+    // Define Badge styles based on potential
+    let BadgeComponent = null;
+    let borderColor = leagueColor;
+    let ringClass = '';
+
+    if (potential === 'top_clash') {
+        borderColor = '#ef4444'; // Red
+        ringClass = 'ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]';
+        BadgeComponent = (
+            <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 animate-pulse">
+                <Flame size={10} fill="white" /> TOP CONFRONTO
+            </span>
+        );
+    } else if (potential === 'top_ht') {
+        borderColor = '#eab308'; // Yellow
+        ringClass = 'ring-2 ring-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]';
+        BadgeComponent = (
+            <span className="bg-yellow-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 animate-pulse">
+                <Zap size={10} fill="black" /> TOP HT
+            </span>
+        );
+    } else if (potential === 'top_ft') {
+        borderColor = '#10b981'; // Green
+        ringClass = 'ring-2 ring-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]';
+        BadgeComponent = (
+            <span className="bg-emerald-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 animate-pulse">
+                <Rocket size={10} fill="white" /> TOP FT
+            </span>
+        );
+    }
 
     return (
         <Card 
-            className={`border-l-4 p-4 hover:bg-surfaceHighlight/20 transition-all group relative ${isFlashing ? 'animate-pulse ring-2 ring-accent bg-accent/10' : ''} ${isSuperClash ? 'ring-2 ring-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)]' : ''}`} 
-            style={{ borderLeftColor: isSuperClash ? '#ef4444' : leagueColor }}
+            className={`border-l-4 p-4 hover:bg-surfaceHighlight/20 transition-all group relative ${isFlashing ? 'animate-pulse ring-2 ring-accent bg-accent/10' : ''} ${ringClass}`} 
+            style={{ borderLeftColor: borderColor }}
         >
             {/* Status badge */}
             <div className={`absolute top-0 right-0 px-2 py-1 rounded-bl text-[10px] font-bold ${statusClass}`}>
                 {statusLabel}
             </div>
 
-            {isSuperClash && (
+            {BadgeComponent && (
                 <div className="absolute top-0 left-0 right-0 flex justify-center -mt-3">
-                    <span className="bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 animate-bounce">
-                        <Flame size={10} fill="white" /> SUPER CLASH
-                    </span>
+                    {BadgeComponent}
                 </div>
             )}
 
             <div className="flex justify-between items-center mb-4 mt-2">
                 <div className="flex items-center gap-1 text-xs font-mono text-textMuted bg-black/20 px-2 py-1 rounded">
-                    <Timer size={12} className={game.time_status === '1' ? 'text-green-400' : 'text-textMuted'} />
+                    <Timer size={12} className={isLive ? 'text-green-400' : 'text-textMuted'} />
                     {game.timer?.tm ?? 0}'
                 </div>
                 <div className={`font-mono font-bold text-xl tracking-widest text-white transition-all duration-300 ${isFlashing ? 'text-green-400 scale-125' : ''}`}>
