@@ -260,16 +260,16 @@ const MatchMiniature: React.FC<{ player: string; match: HistoryMatch }> = ({ pla
   const dateStr = new Date(match.data_realizacao).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
   return (
-    <div className={`group relative flex flex-col items-center justify-center p-1 rounded border ${bgColor} min-w-[40px] cursor-help`}>
+    <div className={`group/tooltip relative flex flex-col items-center justify-center p-1 rounded border ${bgColor} min-w-[40px] cursor-help`}>
       <span className={`text-[10px] font-bold ${textColor}`}>{stats.ftSelf}-{stats.ftOpp}</span>
       <span className="text-[8px] text-textMuted/70">HT {stats.htSelf}-{stats.htOpp}</span>
 
       {/* Tooltip */}
-      <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max max-w-[200px] bg-black/90 text-white text-[10px] p-2 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20 border border-white/10 shadow-xl backdrop-blur-sm">
+      <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-max max-w-[200px] bg-black/95 text-white text-[10px] p-2 rounded opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50 border border-white/10 shadow-xl backdrop-blur-sm invisible group-hover/tooltip:visible">
           <p className="font-bold text-center mb-1">{match.home_player} <span className="text-textMuted">vs</span> {match.away_player}</p>
           <p className="text-textMuted text-center text-[9px]">{dateStr}</p>
           {/* Arrow */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black/90"></div>
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black/95"></div>
       </div>
     </div>
   );
