@@ -4,7 +4,7 @@ import { LiveGame, MatchPotential, HistoryPlayerStats } from '../types';
 import { Card } from '../components/ui/Card';
 import { getLeagueConfig } from '../utils/format';
 import { calculateHistoryPlayerStats, analyzeMatchPotential } from '../utils/stats';
-import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2, Repeat } from 'lucide-react';
+import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2, Trophy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // --- Interfaces ---
@@ -27,6 +27,7 @@ const extractTeamName = (fullName: string): string => {
 
 // --- Components ---
 
+// Toast
 const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string) => void }> = ({ notification, onClose }) => {
     useEffect(() => {
         const timer = setTimeout(() => onClose(notification.id), 5000); 
@@ -42,7 +43,7 @@ const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string
                         <span className="text-xl">⚽</span>
                     </div>
                     <div className="ml-3 w-0 flex-1 pt-0.5">
-                        <p className="text-sm font-black text-green-400 uppercase tracking-wider">GOL DETECTADO!</p>
+                        <p className="text-sm font-black text-green-400 uppercase tracking-wider">GOL!</p>
                         <p className="mt-1 text-sm font-medium text-white truncate">{notification.match}</p>
                         <p className="mt-1 text-xs text-textMuted font-mono font-bold">{notification.score}</p>
                     </div>
@@ -55,18 +56,13 @@ const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string
     );
 };
 
-// New Component: Compact Signal Badge (Only shows if stat is good)
-const StatSignal: React.FC<{ label: string; val: number; threshold: number; color: string; icon?: React.ReactNode }> = ({ label, val, threshold, color, icon }) => {
-    if (val < threshold) return null; // Don't show if not relevant (Clean UI)
-    
-    return (
-        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider border ${color}`}>
-            {icon}
-            <span>{label}</span>
-            {val === 100 && <span className="text-[8px]">★</span>}
-        </div>
-    );
-};
+// Clean Signal Badge
+const SignalBadge: React.FC<{ label: string; color: string; icon?: React.ReactNode }> = ({ label, color, icon }) => (
+    <div className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider border bg-surfaceHighlight/50 ${color}`}>
+        {icon}
+        <span>{label}</span>
+    </div>
+);
 
 const LiveGameCard: React.FC<{ 
     game: LiveGame; 
@@ -102,104 +98,113 @@ const LiveGameCard: React.FC<{
     const isLive = (game.time_status || '').toString() === '1';
     const potential = stats?.potential || 'none';
 
-    let BadgeComponent = null;
+    // Card Style Logic
     let borderColor = leagueColor;
     let ringClass = '';
+    let bgClass = 'bg-surface/50';
+    let potentialBadge = null;
 
-    // Top Badges Logic
     if (potential === 'top_clash') {
         borderColor = '#ef4444';
-        ringClass = 'ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]';
-        BadgeComponent = <span className="bg-red-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"><Flame size={10} fill="white" /> TOP CONFRONTO</span>;
+        ringClass = 'ring-1 ring-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)]';
+        bgClass = 'bg-gradient-to-br from-surface to-red-900/10';
+        potentialBadge = <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent animate-pulse" />;
     } else if (potential === 'top_ht') {
         borderColor = '#eab308';
-        ringClass = 'ring-2 ring-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]';
-        BadgeComponent = <span className="bg-yellow-500 text-black text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"><Zap size={10} fill="black" /> TOP HT</span>;
-    } else if (potential === 'top_ft') {
-        borderColor = '#10b981';
-        ringClass = 'ring-2 ring-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.4)]';
-        BadgeComponent = <span className="bg-emerald-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse"><Rocket size={10} fill="white" /> TOP FT</span>;
+        ringClass = 'ring-1 ring-yellow-500/50';
+        potentialBadge = <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-yellow-500 to-transparent" />;
     }
 
     return (
-        <Card className={`border-l-4 p-3 hover:bg-surfaceHighlight/20 transition-all group relative ${isFlashing ? 'animate-pulse ring-2 ring-accent bg-accent/10' : ''} ${ringClass}`} style={{ borderLeftColor: borderColor }}>
-            <div className="absolute top-0 right-0 px-2 py-1 rounded-bl text-[9px] font-bold bg-black/40 text-textMuted flex items-center gap-1">
-                {isLive && <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>}
-                {isLive ? 'AO VIVO' : 'AGENDADO'}
-            </div>
-
-            {BadgeComponent && (
-                <div className="absolute top-0 left-0 right-0 flex justify-center -mt-2.5">
-                    {BadgeComponent}
-                </div>
-            )}
-
-            {/* Score Board */}
-            <div className="flex justify-between items-center mb-3 mt-1">
-                <div className="flex items-center gap-1 text-xs font-mono text-textMuted bg-black/20 px-2 py-0.5 rounded">
-                    <Timer size={12} className={isLive ? 'text-green-400' : 'text-textMuted'} />
+        <Card className={`border-l-4 p-0 relative overflow-hidden transition-all hover:translate-y-[-2px] ${ringClass} ${bgClass}`} style={{ borderLeftColor: borderColor }}>
+            {potentialBadge}
+            
+            {/* Header Status */}
+            <div className="flex justify-between items-start p-3 pb-0">
+                <div className="flex items-center gap-1 text-xs font-mono bg-black/30 px-2 py-0.5 rounded text-textMuted">
+                    <Timer size={10} className={isLive ? 'text-green-400' : 'text-textMuted'} />
                     {game.timer?.tm ?? 0}'
                 </div>
-                <div className={`font-mono font-bold text-xl tracking-widest text-white ${isFlashing ? 'text-green-400 scale-110' : ''}`}>
-                    {game.ss}
+                <div className={`text-xs font-bold px-2 py-0.5 rounded ${isLive ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-textMuted'}`}>
+                    {isLive ? 'AO VIVO' : 'AGENDADO'}
                 </div>
             </div>
 
-            {/* Teams Info */}
-            <div className="space-y-2 mb-3">
+            {/* Match Content */}
+            <div className="p-4 pt-2 flex flex-col gap-3">
+                {/* Score & Teams */}
                 <div className="flex justify-between items-center">
-                    <div className="overflow-hidden">
-                        <div className="font-bold text-white truncate max-w-[100px] text-xs">{homePlayer}</div>
-                        <div className="text-[9px] text-textMuted truncate max-w-[100px]">{homeTeam}</div>
-                    </div>
-                    {game.scores?.['1'] && <span className="text-[10px] text-textMuted font-mono opacity-60">(HT {game.scores['1'].home}-{game.scores['1'].away})</span>}
-                </div>
-                <div className="flex justify-between items-center">
-                    <div className="overflow-hidden">
-                        <div className="font-bold text-white truncate max-w-[100px] text-xs">{awayPlayer}</div>
-                        <div className="text-[9px] text-textMuted truncate max-w-[100px]">{awayTeam}</div>
-                    </div>
-                </div>
-            </div>
-
-            {/* SMART SIGNALS (Clean Layout) */}
-            {loadingStats ? (
-                <div className="bg-black/20 rounded p-1 mb-2 flex justify-center text-[9px] text-textMuted gap-1 h-[26px] items-center">
-                    <Loader2 size={10} className="animate-spin" /> Analisando...
-                </div>
-            ) : stats ? (
-                <div className="mb-3">
-                    {/* Averages Row */}
-                    <div className="flex justify-between items-center bg-white/5 rounded px-2 py-1 mb-1.5">
-                        <span className={`text-[10px] font-mono font-bold ${stats.p1.avgGoalsFT >= 2.7 ? 'text-green-400' : 'text-textMuted'}`}>
-                            {stats.p1.avgGoalsFT}
-                        </span>
-                        <span className="text-[8px] uppercase text-textMuted font-bold">Médias FT</span>
-                        <span className={`text-[10px] font-mono font-bold ${stats.p2.avgGoalsFT >= 2.7 ? 'text-green-400' : 'text-textMuted'}`}>
-                            {stats.p2.avgGoalsFT}
-                        </span>
-                    </div>
-
-                    {/* Signals Row - Only High Probability Tags */}
-                    <div className="flex flex-wrap justify-center gap-1.5">
-                        {/* Player 1 Signals */}
-                        <StatSignal label="HT+" val={stats.p1.htOver05Pct} threshold={90} color="text-blue-400 border-blue-500/30 bg-blue-500/5" />
-                        <StatSignal label="BTTS" val={stats.p1.bttsPct} threshold={75} color="text-purple-400 border-purple-500/30 bg-purple-500/5" icon={<Repeat size={8}/>} />
-                        
-                        {/* Player 2 Signals */}
-                        <StatSignal label="HT+" val={stats.p2.htOver05Pct} threshold={90} color="text-blue-400 border-blue-500/30 bg-blue-500/5" />
-                        <StatSignal label="BTTS" val={stats.p2.bttsPct} threshold={75} color="text-purple-400 border-purple-500/30 bg-purple-500/5" icon={<Repeat size={8}/>} />
+                    <div className="flex-1 min-w-0">
+                        <div className="font-bold text-white text-sm truncate">{homePlayer}</div>
+                        <div className="text-[10px] text-textMuted truncate">{homeTeam}</div>
                     </div>
                     
-                    {/* Empty State if no good stats */}
-                    {stats.p1.htOver05Pct < 90 && stats.p2.htOver05Pct < 90 && stats.p1.bttsPct < 75 && stats.p2.bttsPct < 75 && (
-                        <div className="text-center text-[9px] text-textMuted/30 italic py-0.5">Sem tendências fortes</div>
-                    )}
-                </div>
-            ) : null}
+                    <div className={`font-mono font-black text-2xl px-3 ${isFlashing ? 'text-green-400 scale-110' : 'text-white'} transition-all`}>
+                        {game.ss}
+                    </div>
 
-            <button onClick={handleGoToH2H} className="w-full py-1.5 bg-white/5 hover:bg-accent hover:text-surface text-accent text-[10px] font-bold rounded flex items-center justify-center gap-1 transition-colors">
-                <Swords size={12} /> ANALISAR
+                    <div className="flex-1 min-w-0 text-right">
+                        <div className="font-bold text-white text-sm truncate">{awayPlayer}</div>
+                        <div className="text-[10px] text-textMuted truncate">{awayTeam}</div>
+                    </div>
+                </div>
+
+                {/* HT Score */}
+                {game.scores?.['1'] && (
+                    <div className="text-center text-[10px] text-textMuted font-mono -mt-1 opacity-60">
+                        HT: {game.scores['1'].home}-{game.scores['1'].away}
+                    </div>
+                )}
+
+                {/* STATS AREA (The "Verdict") */}
+                {loadingStats ? (
+                    <div className="flex justify-center py-2">
+                        <Loader2 size={14} className="animate-spin text-textMuted" />
+                    </div>
+                ) : stats ? (
+                    <div className="space-y-2">
+                        
+                        {/* 1. Averages (Always Show) */}
+                        <div className="flex justify-between items-center bg-black/20 rounded px-2 py-1.5">
+                            <span className={`text-xs font-mono font-bold ${stats.p1.avgGoalsFT >= 2.7 ? 'text-green-400' : 'text-textMuted'}`}>
+                                {stats.p1.avgGoalsFT}
+                            </span>
+                            <span className="text-[9px] uppercase text-textMuted font-bold tracking-widest">Média Gols FT</span>
+                            <span className={`text-xs font-mono font-bold ${stats.p2.avgGoalsFT >= 2.7 ? 'text-green-400' : 'text-textMuted'}`}>
+                                {stats.p2.avgGoalsFT}
+                            </span>
+                        </div>
+
+                        {/* 2. Opportunity Signals (Only Show High Value) */}
+                        <div className="flex flex-wrap justify-center gap-2">
+                            {/* Top Clash Badge */}
+                            {potential === 'top_clash' && (
+                                <SignalBadge label="TOP CONFRONTO" color="text-red-400 border-red-500/30" icon={<Flame size={10}/>} />
+                            )}
+                            {potential === 'top_ht' && (
+                                <SignalBadge label="TOP HT" color="text-yellow-400 border-yellow-500/30" icon={<Zap size={10}/>} />
+                            )}
+                            {potential === 'top_ft' && (
+                                <SignalBadge label="TOP FT" color="text-emerald-400 border-emerald-500/30" icon={<Rocket size={10}/>} />
+                            )}
+
+                            {/* Individual High Stats (Clean) */}
+                            {(stats.p1.htOver05Pct >= 90 || stats.p2.htOver05Pct >= 90) && (
+                                <SignalBadge label="HT+" color="text-blue-300 border-blue-500/30" />
+                            )}
+                            {(stats.p1.bttsPct >= 80 || stats.p2.bttsPct >= 80) && (
+                                <SignalBadge label="BTTS" color="text-purple-300 border-purple-500/30" icon={<RefreshCw size={10}/>} />
+                            )}
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+
+            <button 
+                onClick={handleGoToH2H}
+                className="w-full py-2 bg-surfaceHighlight/50 hover:bg-accent hover:text-surface text-accent text-[10px] font-bold flex items-center justify-center gap-1 transition-colors border-t border-white/5"
+            >
+                <Swords size={12} /> ANALISAR DETALHES <ArrowRight size={12} />
             </button>
         </Card>
     );
