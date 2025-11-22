@@ -276,7 +276,7 @@ export const LiveGames: React.FC = () => {
             const curr = game.ss;
             if (prev && prev !== curr && !isFirstLoad.current) {
                 addNotification({
-                    id: Date.now() + game.id,
+                    id: `${Date.now()}-${game.id}`,
                     match: `${extractPlayerName(game.home.name)} vs ${extractPlayerName(game.away.name)}`,
                     score: curr,
                     leagueColor: getLeagueConfig(game.league.name).color
@@ -300,7 +300,13 @@ export const LiveGames: React.FC = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const addNotification = (n: GoalNotification) => setNotifications(prev => [n, ...prev]);
+    const addNotification = (n: GoalNotification) => {
+        setNotifications(prev => [n, ...prev]);
+        // Remoção automática como failsafe em 6s
+        window.setTimeout(() => {
+            removeNotification(n.id);
+        }, 6000);
+    };
     const removeNotification = (id: string) => setNotifications(prev => prev.filter(n => n.id !== id));
 
     const isLive = (g: LiveGame) => (g.time_status || '').toString() === '1';
