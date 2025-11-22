@@ -1,4 +1,3 @@
-
 export interface Team {
   id: number;
   name: string;
@@ -199,6 +198,6 @@ export interface LiveGame {
     timer: LiveTimer;
     scores: any;
     
-    // Computed on the fly
+    // Optional computed fields
     matchPotential?: MatchPotential;
 }

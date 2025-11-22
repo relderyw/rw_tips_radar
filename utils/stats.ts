@@ -1,4 +1,3 @@
-
 import { Game, ProcessedGame, PlayerMetrics, H2HMatch, HistoryMatch, HistoryPlayerStats, LeagueStats, Projection, PlayerVerdict, MatchPotential } from '../types';
 
 export const processRawGames = (games: any[]): ProcessedGame[] => {
@@ -139,9 +138,7 @@ export const calculateH2HStats = (matches: H2HMatch[], player1: string, player2:
     const pct = (n: number) => Math.round((n/total)*100);
     return {
         total, p1Wins, p2Wins, draws,
-        player1_win_percentage: pct(p1Wins),
-        player2_win_percentage: pct(p2Wins),
-        draw_percentage: pct(draws),
+        player1_win_percentage: pct(p1Wins), player2_win_percentage: pct(p2Wins), draw_percentage: pct(draws),
         avgGoals: Number((totalGoalsFT/total).toFixed(2)),
         avgGoalsHT: Number((totalGoalsHT/total).toFixed(2)),
         ht: { over05Pct: pct(htOver05), over15Pct: pct(htOver15), bttsPct: pct(htBtts) },
