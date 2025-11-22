@@ -1,9 +1,11 @@
 
 import { Game, H2HResponse, HistoryResponse, HistoryMatch, LiveGame } from '../types';
 
+// Updated to Green365 API
 const GAMES_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events';
 const H2H_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/confronto';
-const HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas';
+// const HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas'; // Old API
+const HISTORY_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events'; // New API
 const PLAYER_HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/partidas-assincrono';
 const LIVE_API_URL = 'https://rwtips-r943.onrender.com/api/matches/live';
 const CORS_PROXY = 'https://corsproxy.io/?';
@@ -13,6 +15,21 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Helper for normalizing inconsistent API data
 const normalizeHistoryMatch = (match: any): HistoryMatch => {
+    // Check if it's the new Green365 structure
+    if (match.sport === 'esoccer' && match.score && match.home?.name) {
+        return {
+            home_player: match.home.name,
+            away_player: match.away.name,
+            league_name: match.competition?.name || "Desconhecida",
+            score_home: Number(match.score.home ?? 0),
+            score_away: Number(match.score.away ?? 0),
+            halftime_score_home: Number(match.scoreHT?.home ?? 0),
+            halftime_score_away: Number(match.scoreHT?.away ?? 0),
+            data_realizacao: match.startTime || new Date().toISOString()
+        };
+    }
+
+    // Fallback to old structure (for H2H or other endpoints if they still use it)
     return {
         home_player: match.home_player || match.homePlayer || match.HomePlayer || "Desconhecido",
         away_player: match.away_player || match.awayPlayer || match.AwayPlayer || "Desconhecido",
@@ -33,13 +50,18 @@ export const fetchGames = async (): Promise<Game[]> => {
 
   const fetchPage = async (page: number) => {
       try {
-          const url = `${HISTORY_API_URL}?page=${page}&limit=30`;
+          // New API params
+          const url = `${HISTORY_API_URL}?page=${page}&limit=50&sport=esoccer&status=ended`;
           const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
           
           if (!response.ok) return [];
           
           const data = await response.json();
           
+          // New API returns items in data.items
+          if (data.items && Array.isArray(data.items)) return data.items;
+          
+          // Old fallbacks
           if (data.partidas && Array.isArray(data.partidas)) return data.partidas;
           if (data.matches && Array.isArray(data.matches)) return data.matches;
           if (Array.isArray(data)) return data;
@@ -88,11 +110,13 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
 
 export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     try {
-        const url = `${HISTORY_API_URL}?page=1&limit=50`;
+        // Updated to use new API params
+        const url = `${HISTORY_API_URL}?page=1&limit=100&sport=esoccer&status=ended`;
         const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
         if(response.ok) {
             const data = await response.json();
-            const raw = data.partidas || data.matches || (Array.isArray(data) ? data : []);
+            // New API structure: data.items
+            const raw = data.items || data.partidas || data.matches || (Array.isArray(data) ? data : []);
             return raw.map(normalizeHistoryMatch);
         }
     } catch (e) {
