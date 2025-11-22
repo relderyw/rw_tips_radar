@@ -1,7 +1,8 @@
+
 export interface Team {
   id: number;
   name: string;
-  team_name: string;
+  team_name: string; // Sometimes the API gives team_name
 }
 
 export interface Competition {
@@ -22,11 +23,13 @@ export interface Game {
   home: Team;
   away: Team;
   score: Score;
-  scoreHT?: Score;
+  scoreHT?: Score; // The API might use different field names, adapted from user code
+  // Adapted based on user code utilizing `scoreHT`
   halftime_score_home?: number; 
   halftime_score_away?: number;
 }
 
+// Normalized Game Structure for internal use
 export interface ProcessedGame {
   id: number;
   league: string;
@@ -66,6 +69,7 @@ export interface PlayerMetrics {
   avgGoalsFT: number;
   wins: number;
   
+  // Percentages
   htOver05Pct: number;
   htOver15Pct: number;
   htOver25Pct: number;
@@ -78,6 +82,8 @@ export interface PlayerMetrics {
   ftBttsPct: number;
   
   winPct: number;
+  
+  // New Analysis Field
   verdict: PlayerVerdict;
 }
 
@@ -104,6 +110,7 @@ export interface H2HResponse {
   matches: H2HMatch[];
 }
 
+// New Interface for the History API to populate Dropdowns
 export interface HistoryMatch {
     home_player: string;
     away_player: string;
@@ -111,6 +118,7 @@ export interface HistoryMatch {
     score_home: number;
     score_away: number;
     data_realizacao: string;
+    // Added optional HT fields to support full stats calculation
     halftime_score_home: number;
     halftime_score_away: number;
 }
@@ -123,17 +131,18 @@ export interface HistoryResponse {
 export interface HistoryPlayerStats {
     player: string;
     games: number;
-    avgGoalsHT: number; 
-    avgGoalsFT: number; 
+    avgGoalsHT: number; // Total goals in match
+    avgGoalsFT: number; // Total goals in match
     
+    // New: Specific Player Output
     avgScored: number; 
-    avgScoredHT: number; 
+    avgScoredHT: number; // Individual HT goals
     avgConceded: number;
 
     htOver05Pct: number;
     htOver15Pct: number;
     htOver25Pct: number; // Added for Top HT logic
-    htBttsPct: number; 
+    htBttsPct: number; // Added for Super Over logic
     
     ftOver15Pct: number;
     ftOver25Pct: number;
@@ -153,7 +162,7 @@ export interface LeagueStats {
 
 export interface Projection {
     market: string;
-    probability: number; 
+    probability: number; // 0-100
     confidence: 'High' | 'Medium' | 'Low';
     reasoning: string[];
     riskFactor?: boolean;
@@ -172,9 +181,9 @@ export interface LiveLeague {
 }
 
 export interface LiveTimer {
-    tm: number; 
-    ts: number; 
-    tt: string; 
+    tm: number; // minutes
+    ts: number; // seconds
+    tt: string; // status (1 = playing?)
 }
 
 export type MatchPotential = 'top_clash' | 'top_ht' | 'top_ft' | 'none';
@@ -186,9 +195,10 @@ export interface LiveGame {
     league: LiveLeague;
     home: LiveTeam;
     away: LiveTeam;
-    ss: string; 
+    ss: string; // score string "2-1"
     timer: LiveTimer;
     scores: any;
     
+    // Computed on the fly
     matchPotential?: MatchPotential;
 }
