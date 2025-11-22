@@ -18,6 +18,8 @@ export const processRawGames = (games: any[]): ProcessedGame[] => {
 
     return {
       id: game.id || Math.random(),
+
+      
       league: league,
       date: date,
       homePlayer: homePlayer,

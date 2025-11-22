@@ -117,8 +117,12 @@ export const Tendencias: React.FC = () => {
   useEffect(() => {
     const bootstrap = async () => {
       const history = await fetchHistoryGames();
+      
+      // Extract unique leagues and sort them
       const leagues = Array.from(new Set(history.map(h => h.league_name))).sort();
       setAvailableLeagues(leagues);
+      
+      // Build the map of players per league
       const map: Record<string, Set<string>> = {};
       history.forEach(h => {
         const ln = h.league_name || 'Desconhecida';
@@ -127,6 +131,14 @@ export const Tendencias: React.FC = () => {
         map[ln].add(h.away_player);
       });
       setPlayersByLeague(map);
+
+      // Auto-select the first available league if the current one is invalid or default 'A' is not present
+      if (leagues.length > 0) {
+          // If 'A' is not in the list, pick the first one
+          if (!leagues.includes('A') && league === 'A') {
+              setLeague(leagues[0]);
+          }
+      }
     };
     bootstrap();
   }, []);
