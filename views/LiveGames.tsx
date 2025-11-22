@@ -56,11 +56,16 @@ const GoalToast: React.FC<{ notification: GoalNotification; onClose: (id: string
     );
 };
 
-// Clean Signal Badge
-const SignalBadge: React.FC<{ label: string; color: string; icon?: React.ReactNode }> = ({ label, color, icon }) => (
-    <div className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider border bg-surfaceHighlight/50 ${color}`}>
+// Clean Signal Badge com tooltip
+const SignalBadge: React.FC<{ label: string; color: string; icon?: React.ReactNode; tooltip?: string }> = ({ label, color, icon, tooltip }) => (
+    <div className={`relative group flex items-center gap-1 px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider border bg-surfaceHighlight/50 ${color}`}>
         {icon}
         <span>{label}</span>
+        {tooltip && (
+            <div className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-black/90 text-white text-[10px] px-2 py-1 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg">
+                {tooltip}
+            </div>
+        )}
     </div>
 );
 
@@ -183,30 +188,30 @@ const LiveGameCard: React.FC<{
                         <div className="flex flex-wrap justify-center gap-2">
                             {/* Top Badges */}
                             {potential === 'top_clash' && (
-                                <SignalBadge label="TOP CONFRONTO" color="text-red-400 border-red-500/30" icon={<Flame size={10}/>} />
+                                <SignalBadge label="TOP CONFRONTO" color="text-red-400 border-red-500/30" icon={<Flame size={10}/>} tooltip="Confronto excepcional com métricas elevadas em HT, FT e BTTS." />
                             )}
                             {potential === 'top_ht' && (
-                                <SignalBadge label="TOP HT" color="text-yellow-400 border-yellow-500/30" icon={<Zap size={10}/>} />
+                                <SignalBadge label="TOP HT" color="text-yellow-400 border-yellow-500/30" icon={<Zap size={10}/>} tooltip="Métricas excepcionais para gols no 1º tempo (HT)." />
                             )}
                             {potential === 'top_ft' && (
-                                <SignalBadge label="TOP FT" color="text-emerald-400 border-emerald-500/30" icon={<Rocket size={10}/>} />
+                                <SignalBadge label="TOP FT" color="text-emerald-400 border-emerald-500/30" icon={<Rocket size={10}/>} tooltip="Métricas excepcionais para gols no tempo total (FT)." />
                             )}
 
                             {/* Individual High Stats (Expanded - Sniper threshold >85%) */}
                             {(stats.p1.htOver05Pct >= 85 || stats.p2.htOver05Pct >= 85) && (
-                                <SignalBadge label="HT+" color="text-blue-300 border-blue-500/30" />
+                                <SignalBadge label="HT+" color="text-blue-300 border-blue-500/30" tooltip="Probabilidade de pelo menos 1 gol no 1º tempo." />
                             )}
                             {(stats.p1.htOver15Pct >= 85 || stats.p2.htOver15Pct >= 85) && (
-                                <SignalBadge label="HT 1.5+" color="text-yellow-300 border-yellow-500/30" icon={<Zap size={10}/>} />
+                                <SignalBadge label="HT 1.5+" color="text-yellow-300 border-yellow-500/30" icon={<Zap size={10}/>} tooltip="Probabilidade de 2+ gols no 1º tempo." />
                             )}
                             {(stats.p1.ftOver25Pct >= 85 || stats.p2.ftOver25Pct >= 85) && (
-                                <SignalBadge label="FT 2.5+" color="text-emerald-300 border-emerald-500/30" icon={<Rocket size={10}/>} />
+                                <SignalBadge label="FT 2.5+" color="text-emerald-300 border-emerald-500/30" icon={<Rocket size={10}/>} tooltip="Probabilidade de 3+ gols no jogo (tempo total)." />
                             )}
                             {(stats.p1.ftOver35Pct && stats.p1.ftOver35Pct >= 85) || (stats.p2.ftOver35Pct && stats.p2.ftOver35Pct >= 85) ? (
-                                <SignalBadge label="FT 3.5+" color="text-emerald-400 border-emerald-500/30" icon={<Rocket size={10}/>} />
+                                <SignalBadge label="FT 3.5+" color="text-emerald-400 border-emerald-500/30" icon={<Rocket size={10}/>} tooltip="Probabilidade de 4+ gols no jogo (tempo total)." />
                             ) : null}
                             {(stats.p1.bttsPct >= 85 || stats.p2.bttsPct >= 85) && (
-                                <SignalBadge label="BTTS" color="text-purple-300 border-purple-500/30" icon={<Repeat size={10}/>} />
+                                <SignalBadge label="BTTS" color="text-purple-300 border-purple-500/30" icon={<Repeat size={10}/>} tooltip="Probabilidade de ambos marcarem (tempo total)." />
                             )}
                         </div>
                     </div>
