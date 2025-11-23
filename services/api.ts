@@ -95,7 +95,7 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
 
   // STRATEGY: Check for Adriatic League
   if (league.includes('Adriatic') || league.includes('10 mins play')) {
-      const url = `https://api.green365.com.br/api/e-soccer/event/stats?home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&period=last_30`;
+      const url = `https://api.green365.com.br/api/e-soccer/event/stats?homeID=null&awayID=null&home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&league=null&eventID=0&period=last_30`;
       
       try {
           const data = await tryFetch(url);
@@ -121,16 +121,6 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
               });
 
               // Calculate stats manually since the API structure is different
-              const p1Wins = matches.filter(m => m.score_home > m.score_away).length; // Assuming P1 is Home in the context of the list? 
-              // Wait, the API returns "lastGames" which might be mixed home/away.
-              // We need to check who is who.
-              // In the user sample: home: "PAOK (Hulk)", homeID: "1169814".
-              // We passed home=Snail, away=Hulk.
-              // So we need to normalize based on the requested players.
-              
-              // Actually, let's just return the matches and let the UI calculate or calculate based on the requested P1/P2.
-              // But H2HResponse needs totals.
-              
               let p1WinsCount = 0;
               let p2WinsCount = 0;
               let drawsCount = 0;
@@ -138,7 +128,6 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
               matches.forEach(m => {
                   // Normalize names for comparison (case insensitive, trim)
                   const hName = m.home_player.toLowerCase();
-                  const aName = m.away_player.toLowerCase();
                   const p1Name = player1.toLowerCase();
                   
                   let p1IsHome = hName.includes(p1Name);
@@ -162,7 +151,9 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
                   player1_win_percentage: total > 0 ? (p1WinsCount / total) * 100 : 0,
                   player2_win_percentage: total > 0 ? (p2WinsCount / total) * 100 : 0,
                   draw_percentage: total > 0 ? (drawsCount / total) * 100 : 0,
-                  matches: matches
+                  matches: matches,
+                  player1_stats: data.players?.playerA?.stats,
+                  player2_stats: data.players?.playerB?.stats
               };
           }
       } catch (e) {

@@ -107,6 +107,8 @@ export interface H2HResponse {
   player2_win_percentage: number;
   draw_percentage: number;
   matches: H2HMatch[];
+  player1_stats?: any; // Using any for flexibility with the new API structure, or define a specific type
+  player2_stats?: any;
 }
 
 // New Interface for the History API to populate Dropdowns
