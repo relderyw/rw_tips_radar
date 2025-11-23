@@ -152,8 +152,8 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
                   player2_win_percentage: total > 0 ? (p2WinsCount / total) * 100 : 0,
                   draw_percentage: total > 0 ? (drawsCount / total) * 100 : 0,
                   matches: matches,
-                  player1_stats: data.players?.playerA?.stats,
-                  player2_stats: data.players?.playerB?.stats
+                  player1_stats: data.players?.playerA,
+                  player2_stats: data.players?.playerB
               };
           }
       } catch (e) {
