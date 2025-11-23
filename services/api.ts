@@ -93,6 +93,84 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
       return await resp.json();
   };
 
+  // STRATEGY: Check for Adriatic League
+  if (league.includes('Adriatic') || league.includes('10 mins play')) {
+      const url = `https://api.green365.com.br/api/e-soccer/event/stats?home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&period=last_30`;
+      
+      try {
+          const data = await tryFetch(url);
+          
+          if (data && data.gameMutualInformation && Array.isArray(data.gameMutualInformation.lastGames)) {
+              const rawMatches = data.gameMutualInformation.lastGames;
+              
+              const matches: HistoryMatch[] = rawMatches.map((m: any) => {
+                  const [homeScore, awayScore] = (m.score || "0-0").split('-').map(Number);
+                  const [htHome, htAway] = (m.scoreHT || "0-0").split('-').map(Number);
+                  
+                  return {
+                      home_player: m.home.includes('(') ? m.home.split('(')[1].replace(')', '') : m.home, // Extract name from "Team (Player)"
+                      away_player: m.away.includes('(') ? m.away.split('(')[1].replace(')', '') : m.away,
+                      score_home: homeScore,
+                      score_away: awayScore,
+                      halftime_score_home: htHome,
+                      halftime_score_away: htAway,
+                      data_realizacao: m.date ? new Date(m.timestamp * 1000).toISOString() : new Date().toISOString(),
+                      home_team: m.home.includes('(') ? m.home.split('(')[0].trim() : undefined,
+                      away_team: m.away.includes('(') ? m.away.split('(')[0].trim() : undefined
+                  };
+              });
+
+              // Calculate stats manually since the API structure is different
+              const p1Wins = matches.filter(m => m.score_home > m.score_away).length; // Assuming P1 is Home in the context of the list? 
+              // Wait, the API returns "lastGames" which might be mixed home/away.
+              // We need to check who is who.
+              // In the user sample: home: "PAOK (Hulk)", homeID: "1169814".
+              // We passed home=Snail, away=Hulk.
+              // So we need to normalize based on the requested players.
+              
+              // Actually, let's just return the matches and let the UI calculate or calculate based on the requested P1/P2.
+              // But H2HResponse needs totals.
+              
+              let p1WinsCount = 0;
+              let p2WinsCount = 0;
+              let drawsCount = 0;
+              
+              matches.forEach(m => {
+                  // Normalize names for comparison (case insensitive, trim)
+                  const hName = m.home_player.toLowerCase();
+                  const aName = m.away_player.toLowerCase();
+                  const p1Name = player1.toLowerCase();
+                  
+                  let p1IsHome = hName.includes(p1Name);
+                  
+                  if (m.score_home === m.score_away) {
+                      drawsCount++;
+                  } else if (m.score_home > m.score_away) {
+                      if (p1IsHome) p1WinsCount++; else p2WinsCount++;
+                  } else {
+                      if (p1IsHome) p2WinsCount++; else p1WinsCount++;
+                  }
+              });
+
+              const total = matches.length;
+              
+              return {
+                  total_matches: total,
+                  player1_wins: p1WinsCount,
+                  player2_wins: p2WinsCount,
+                  draws: drawsCount,
+                  player1_win_percentage: total > 0 ? (p1WinsCount / total) * 100 : 0,
+                  player2_win_percentage: total > 0 ? (p2WinsCount / total) * 100 : 0,
+                  draw_percentage: total > 0 ? (drawsCount / total) * 100 : 0,
+                  matches: matches
+              };
+          }
+      } catch (e) {
+          console.error("Error fetching Adriatic H2H:", e);
+          // Fallback to standard flow if this fails
+      }
+  }
+
   const baseUrl = `${H2H_API_URL}/${encodeURIComponent(player1)}/${encodeURIComponent(player2)}?page=1&limit=30&league=${encodeURIComponent(league)}`;
 
   try {
