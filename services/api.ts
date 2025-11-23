@@ -4,8 +4,7 @@ import { Game, H2HResponse, HistoryResponse, HistoryMatch, LiveGame } from '../t
 // Updated to Green365 API
 const GAMES_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events';
 const H2H_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/confronto';
-// const HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas'; // Old API
-const HISTORY_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events'; // New API
+
 const PLAYER_HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/partidas-assincrono';
 const LIVE_API_URL = 'https://rwtips-r943.onrender.com/api/matches/live';
 const CORS_PROXY = 'https://corsproxy.io/?';
@@ -179,22 +178,48 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
   }
 };
 
+// const HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas'; // Old API
+const RWTIPS_HISTORY_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas'; // Old API (Source of Truth for Standard Leagues)
+const HISTORY_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events'; // New API
+
 export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     try {
-        // Fetch 2 pages of 100 games each (Total 200 games)
-        const pages = [1, 2];
-        const promises = pages.map(page => 
+        // STRATEGY: Fetch from BOTH APIs to ensure we have:
+        // 1. Correct casing/names for Standard Leagues (from RWTips)
+        // 2. Adriatic League data (from Green365)
+        
+        const pages = [1, 2, 3]; // Increased pages to get more players
+        
+        // 1. Fetch from RWTips (Old API) - Source of Truth for Standard Leagues
+        const rwTipsPromises = pages.map(page => 
+            fetch(`${CORS_PROXY}${RWTIPS_HISTORY_URL}?page=${page}&limit=100`, { 
+                headers: { 'Accept': 'application/json' } 
+            }).then(res => {
+                if (!res.ok) console.error(`RWTips Fetch Error Page ${page}:`, res.status);
+                return res.ok ? res.json() : null;
+            }).catch(err => {
+                console.error(`RWTips Fetch Failed Page ${page}:`, err);
+                return null;
+            })
+        );
+
+        // 2. Fetch from Green365 (New API) - Source for Adriatic
+        const green365Promises = pages.map(page => 
             fetch(`${HISTORY_API_URL}?page=${page}&limit=100&sport=esoccer&status=ended`, { 
                 headers: { 'Accept': 'application/json' } 
             }).then(res => res.ok ? res.json() : null)
         );
 
-        const results = await Promise.all(promises);
+        const results = await Promise.all([...rwTipsPromises, ...green365Promises]);
         let allMatches: any[] = [];
 
         results.forEach(data => {
             if (data) {
+                // Green365 structure
                 if (data.items && Array.isArray(data.items)) allMatches = [...allMatches, ...data.items];
+                // RWTips structure
+                else if (data.partidas && Array.isArray(data.partidas)) allMatches = [...allMatches, ...data.partidas];
+                // Fallbacks
                 else if (data.data && Array.isArray(data.data)) allMatches = [...allMatches, ...data.data];
                 else if (Array.isArray(data)) allMatches = [...allMatches, ...data];
             }
