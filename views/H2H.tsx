@@ -337,26 +337,34 @@ export const H2H: React.FC = () => {
 
             // OPTIMIZATION: For Adriatic League, use the data already returned by fetchH2H
             if ((l.includes('Adriatic') || l.includes('10 mins play')) && h2h?.player1_stats && h2h?.player2_stats) {
-                // Helper to normalize Adriatic games to HistoryMatch
-                const normalizeAdriaticGames = (games: any[], playerName: string): HistoryMatch[] => {
-                    return games.map((g: any) => {
-                         const [hScore, aScore] = (g.score || "0-0").split('-').map(Number);
-                         const [htH, htA] = (g.scoreHT || "0-0").split('-').map(Number);
-                         return {
-                             home_player: g.home.includes('(') ? g.home.split('(')[1].replace(')', '') : g.home,
-                             away_player: g.away.includes('(') ? g.away.split('(')[1].replace(')', '') : g.away,
-                             score_home: hScore,
-                             score_away: aScore,
-                             halftime_score_home: htH,
-                             halftime_score_away: htA,
-                             data_realizacao: g.date ? new Date(g.timestamp * 1000).toISOString() : new Date().toISOString(),
-                             league_name: l
-                         };
-                    });
-                };
+                // Check if data is already normalized (Caveira API returns normalized HistoryMatch[])
+                const isNormalized = (games: any[]) => games.length > 0 && games[0].score_home !== undefined;
 
-                if (h2h.player1_stats.games) setP1Matches(normalizeAdriaticGames(h2h.player1_stats.games, p1));
-                if (h2h.player2_stats.games) setP2Matches(normalizeAdriaticGames(h2h.player2_stats.games, p2));
+                if (h2h.player1_stats.games && isNormalized(h2h.player1_stats.games)) {
+                     setP1Matches(h2h.player1_stats.games);
+                     setP2Matches(h2h.player2_stats.games);
+                } else {
+                    // Fallback: Helper to normalize Adriatic games (Green365 structure)
+                    const normalizeAdriaticGames = (games: any[], playerName: string): HistoryMatch[] => {
+                        return games.map((g: any) => {
+                             const [hScore, aScore] = (g.score || "0-0").split('-').map(Number);
+                             const [htH, htA] = (g.scoreHT || "0-0").split('-').map(Number);
+                             return {
+                                 home_player: g.home.includes('(') ? g.home.split('(')[1].replace(')', '') : g.home,
+                                 away_player: g.away.includes('(') ? g.away.split('(')[1].replace(')', '') : g.away,
+                                 score_home: hScore,
+                                 score_away: aScore,
+                                 halftime_score_home: htH,
+                                 halftime_score_away: htA,
+                                 data_realizacao: g.date ? new Date(g.timestamp * 1000).toISOString() : new Date().toISOString(),
+                                 league_name: l
+                             };
+                        });
+                    };
+
+                    if (h2h.player1_stats.games) setP1Matches(normalizeAdriaticGames(h2h.player1_stats.games, p1));
+                    if (h2h.player2_stats.games) setP2Matches(normalizeAdriaticGames(h2h.player2_stats.games, p2));
+                }
             } else {
                 // Standard flow for other leagues
                 const [p1Hist, p2Hist] = await Promise.all([
