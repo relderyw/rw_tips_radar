@@ -2,6 +2,11 @@ import React, { useEffect } from 'react';
 
 const DevToolsProtection: React.FC = () => {
   useEffect(() => {
+    // ADMIN BYPASS: Check for URL param or LocalStorage flag
+    // Changed to a more obscure key as requested
+    const isAdmin = window.location.search.includes('radar_sys_admin_x92=true') || localStorage.getItem('rw_radar_master') === 'true';
+    if (isAdmin) return;
+
     // 1. Disable Right Click
     const handleContextMenu = (e: MouseEvent) => {
       e.preventDefault();
