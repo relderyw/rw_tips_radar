@@ -625,6 +625,7 @@ export const Tendencias: React.FC = () => {
   const [playersByLeague, setPlayersByLeague] = useState<Record<string, Set<string>>>({});
   const [results, setResults] = useState<PlayerTrend[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [progress, setProgress] = useState<string>('');
   const [showMetricsGuide, setShowMetricsGuide] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [nextUpdateTimer, setNextUpdateTimer] = useState<number>(60);
@@ -671,33 +672,48 @@ export const Tendencias: React.FC = () => {
   }, [nextUpdateTimer]);
 
   const loadTrends = async () => {
+    console.log("Starting loadTrends for league:", league);
     let playerSet: Set<string>;
     
     if (league === 'TODAS') {
         playerSet = new Set<string>();
-        Object.values(playersByLeague).forEach((set: any) => {
-            (set as Set<string>).forEach(p => playerSet.add(p));
+        const leagues = Object.keys(playersByLeague);
+        console.log("Aggregating leagues:", leagues);
+        leagues.forEach(l => {
+            const pSet = playersByLeague[l];
+            if (pSet) {
+                pSet.forEach(p => playerSet.add(p));
+            }
         });
     } else {
         playerSet = playersByLeague[league] ?? new Set<string>();
     }
 
     const players: string[] = Array.from(playerSet);
+    console.log(`Found ${players.length} players for analysis.`);
+    
     // Increase limit for Global view to catch more top trends
     const limit = league === 'TODAS' ? 150 : 40; 
     const limited = players.slice(0, limit); 
     
     setLoading(true);
+    setProgress(`Iniciando análise de ${limited.length} jogadores...`);
     setLastUpdate(new Date());
     
     const out: PlayerTrend[] = [];
     const CONCURRENCY = 5;
     
     for (let i = 0; i < limited.length; i += CONCURRENCY) {
+      setProgress(`Analisando ${i} de ${limited.length}...`);
       const batch: string[] = limited.slice(i, i + CONCURRENCY);
       const batchResults = await Promise.all(batch.map(async (p: string) => {
-        const matches = await fetchPlayerHistory(p, 6);
-        return analyzeTrends(p, league, matches);
+        try {
+            const matches = await fetchPlayerHistory(p, 6);
+            return analyzeTrends(p, league === 'TODAS' ? 'Global' : league, matches);
+        } catch (e) {
+            console.error(`Error analyzing player ${p}:`, e);
+            return null;
+        }
       }));
       batchResults.forEach(t => { if (t) out.push(t); });
     }
@@ -778,7 +794,10 @@ export const Tendencias: React.FC = () => {
                 <div className="w-16 h-16 border-4 border-surfaceHighlight rounded-full"></div>
                 <div className="w-16 h-16 border-4 border-accent border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
             </div>
-            <p className="text-textMuted animate-pulse font-medium">Calculando probabilidades e assertividade...</p>
+            <div className="text-center">
+                <p className="text-textMuted animate-pulse font-medium">Calculando probabilidades e assertividade...</p>
+                <p className="text-xs text-textMuted mt-2 font-mono">{progress}</p>
+            </div>
         </div>
       ) : results.length === 0 ? (
         <div className="text-center py-24 text-textMuted bg-surface/30 rounded-2xl border border-white/5 flex flex-col items-center gap-4">
