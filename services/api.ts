@@ -356,34 +356,22 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
             })
         );
 
-        // 2. Fetch from Green365 (New API) - Source for Adriatic
-        const green365Promises = pages.map(page => 
-            fetch(`${HISTORY_API_URL}?page=${page}&limit=100&sport=esoccer&status=ended`, { 
-                headers: { 'Accept': 'application/json' } 
-            }).then(res => res.ok ? res.json() : null)
-        );
+        // 2. Fetch from Green365 (REMOVED to avoid duplicates with Caveira)
+        // const green365Promises = ...
 
         // 3. Fetch from Caveira API (New Source)
         const caveiraPromise = fetchCaveiraHistory();
 
-        const results = await Promise.all([...rwTipsPromises, ...green365Promises, caveiraPromise]);
+        const results = await Promise.all([...rwTipsPromises, caveiraPromise]);
         let allMatches: any[] = [];
 
         // Handle Caveira results separately as they are already normalized
         const caveiraMatches = results.pop(); 
-        if (Array.isArray(caveiraMatches)) {
-            // We can add them directly to the final list, but let's keep the flow
-            // Actually, fetchCaveiraHistory returns HistoryMatch[], so we don't need to normalize again.
-            // But the current flow maps everything at the end.
-            // Let's just add them to a separate list and merge at the end.
-        }
-
+        
         results.forEach(data => {
             if (data) {
-                // Green365 structure
-                if (data.items && Array.isArray(data.items)) allMatches = [...allMatches, ...data.items];
                 // RWTips structure
-                else if (data.partidas && Array.isArray(data.partidas)) allMatches = [...allMatches, ...data.partidas];
+                if (data.partidas && Array.isArray(data.partidas)) allMatches = [...allMatches, ...data.partidas];
                 // Fallbacks
                 else if (data.data && Array.isArray(data.data)) allMatches = [...allMatches, ...data.data];
                 else if (Array.isArray(data)) allMatches = [...allMatches, ...data];
