@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/Sidebar';
+import DevToolsProtection from './components/DevToolsProtection';
 import { Overview } from './views/Overview';
 import { PlayerMetrics } from './views/PlayerMetrics';
 import { H2H } from './views/H2H';
@@ -16,6 +17,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-background text-textMain flex">
+       <DevToolsProtection />
        <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
        
        <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-20'}`}>
