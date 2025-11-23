@@ -120,6 +120,8 @@ export interface HistoryMatch {
     // Added optional HT fields to support full stats calculation
     halftime_score_home: number;
     halftime_score_away: number;
+    home_id?: number;
+    away_id?: number;
 }
 
 export interface HistoryResponse {

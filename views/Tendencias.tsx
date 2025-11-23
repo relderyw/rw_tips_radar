@@ -623,6 +623,7 @@ export const Tendencias: React.FC = () => {
   const [league, setLeague] = useState<string>('A');
   const [availableLeagues, setAvailableLeagues] = useState<string[]>([]);
   const [playersByLeague, setPlayersByLeague] = useState<Record<string, Set<string>>>({});
+  const [playerIds, setPlayerIds] = useState<Record<string, number>>({});
   const [results, setResults] = useState<PlayerTrend[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<string>('');
@@ -637,13 +638,20 @@ export const Tendencias: React.FC = () => {
       setAvailableLeagues(leagues);
       
       const map: Record<string, Set<string>> = {};
+      const ids: Record<string, number> = {};
+      
       history.forEach(h => {
         const ln = h.league_name || 'Desconhecida';
         if (!map[ln]) map[ln] = new Set<string>();
         map[ln].add(h.home_player);
         map[ln].add(h.away_player);
+        
+        // Capture IDs if available
+        if (h.home_id) ids[h.home_player] = h.home_id;
+        if (h.away_id) ids[h.away_player] = h.away_id;
       });
       setPlayersByLeague(map);
+      setPlayerIds(ids);
 
       if (leagues.length > 0 && (!leagues.includes(league) || league === 'A')) {
          if (leagues.includes('A')) setLeague('A');
@@ -708,7 +716,8 @@ export const Tendencias: React.FC = () => {
       const batch: string[] = limited.slice(i, i + CONCURRENCY);
       const batchResults = await Promise.all(batch.map(async (p: string) => {
         try {
-            const matches = await fetchPlayerHistory(p, 6);
+            const pid = playerIds[p]; // Get ID if available
+            const matches = await fetchPlayerHistory(p, 6, pid);
             return analyzeTrends(p, league === 'TODAS' ? 'Global' : league, matches);
         } catch (e) {
             console.error(`Error analyzing player ${p}:`, e);

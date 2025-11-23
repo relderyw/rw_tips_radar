@@ -25,7 +25,9 @@ const normalizeHistoryMatch = (match: any): HistoryMatch => {
             score_away: Number(match.score.away ?? 0),
             halftime_score_home: Number(match.scoreHT?.home ?? 0),
             halftime_score_away: Number(match.scoreHT?.away ?? 0),
-            data_realizacao: match.startTime || new Date().toISOString()
+            data_realizacao: match.startTime || new Date().toISOString(),
+            home_id: match.home?.id,
+            away_id: match.away?.id
         };
     }
 
@@ -125,8 +127,43 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     return [];
 };
 
-export const fetchPlayerHistory = async (player: string, limit: number = 20): Promise<HistoryMatch[]> => {
+export const fetchPlayerHistory = async (player: string, limit: number = 20, playerId?: number): Promise<HistoryMatch[]> => {
     try {
+        // STRATEGY 1: If we have a Player ID, use the Analysis API (Required for Adriatic)
+        if (playerId) {
+            const url = `https://api-v2.green365.com.br/api/v2/analysis/participant?sport=esoccer&participantID=${playerId}&participantName=${encodeURIComponent(player)}`;
+            const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            
+            if (response.ok) {
+                const data = await response.json();
+                // The structure is: sessions -> sessionEvents -> events
+                // We need to find the 'events' array inside sessionEvents
+                // Based on user sample: data.sessions.sessionEvents.events
+                
+                // However, the user sample showed:
+                // sessions: { ... }
+                // sessionEvents: { category: "events", events: [...] }
+                // It seems 'sessionEvents' might be at the root or inside sessions?
+                // Let's try to find 'events' array recursively or check specific paths.
+                
+                // User sample:
+                // { sport: "esoccer", sessions: {...}, sessionEvents: { category: "events", events: [...] } }
+                
+                let rawEvents: any[] = [];
+                
+                if (data.sessionEvents && Array.isArray(data.sessionEvents.events)) {
+                    rawEvents = data.sessionEvents.events;
+                } else if (data.sessions && data.sessions.sessionEvents && Array.isArray(data.sessions.sessionEvents.events)) {
+                     rawEvents = data.sessions.sessionEvents.events;
+                }
+
+                if (rawEvents.length > 0) {
+                    return rawEvents.slice(0, limit).map(normalizeHistoryMatch);
+                }
+            }
+        }
+
+        // STRATEGY 2: Fallback to old API (Name based)
         const url = `${PLAYER_HISTORY_API_URL}?jogador=${encodeURIComponent(player)}&limit=${limit}&page=1`;
         const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
 
@@ -145,7 +182,7 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20): Pr
         return [];
 
     } catch (error) {
-        console.error(`Error fetching specific history for player ${player}:`, error);
+        console.error(`Error fetching specific history for player ${player} (ID: ${playerId}):`, error);
         return [];
     }
 };
