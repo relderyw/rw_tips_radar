@@ -182,9 +182,15 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
         
         // 1. Fetch from RWTips (Old API)
         const rwTipsPromises = pages.map(page => 
-            fetch(`${RWTIPS_HISTORY_URL}?page=${page}&limit=100&sport=esoccer&status=ended`, { 
+            fetch(`${CORS_PROXY}${RWTIPS_HISTORY_URL}?page=${page}&limit=100&sport=esoccer&status=ended`, { 
                 headers: { 'Accept': 'application/json' } 
-            }).then(res => res.ok ? res.json() : null)
+            }).then(res => {
+                if (!res.ok) console.error(`RWTips Fetch Error Page ${page}:`, res.status);
+                return res.ok ? res.json() : null;
+            }).catch(err => {
+                console.error(`RWTips Fetch Failed Page ${page}:`, err);
+                return null;
+            })
         );
 
         // 2. Fetch from Green365 (New API)
