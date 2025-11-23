@@ -3,9 +3,14 @@ import React, { useEffect } from 'react';
 const DevToolsProtection: React.FC = () => {
   useEffect(() => {
     // ADMIN BYPASS: Check for URL param or LocalStorage flag
-    // Changed to a more obscure key as requested
-    const isAdmin = window.location.search.includes('radar_sys_admin_x92=true') || localStorage.getItem('rw_radar_master') === 'true';
-    if (isAdmin) return;
+    // ADMIN BYPASS: Check for URL param or LocalStorage flag
+    // Changed to check href because HashRouter puts params after the hash
+    const isAdmin = window.location.href.includes('radar_sys_admin_x92=true') || localStorage.getItem('rw_radar_master') === 'true';
+    if (isAdmin) {
+        // Persist admin status so they don't need the param on every navigation
+        localStorage.setItem('rw_radar_master', 'true');
+        return;
+    }
 
     // 1. Disable Right Click
     const handleContextMenu = (e: MouseEvent) => {
