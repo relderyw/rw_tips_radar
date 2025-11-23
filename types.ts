@@ -124,6 +124,8 @@ export interface HistoryMatch {
     halftime_score_away: number;
     home_id?: number;
     away_id?: number;
+    home_team?: string;
+    away_team?: string;
 }
 
 export interface HistoryResponse {

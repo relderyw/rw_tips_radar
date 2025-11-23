@@ -7,6 +7,8 @@ const H2H_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/confronto
 
 const PLAYER_HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/partidas-assincrono';
 const LIVE_API_URL = 'https://rwtips-r943.onrender.com/api/matches/live';
+const CAVEIRA_API_URL = 'https://esoccer.dev3.caveira.tips/v1/esoccer/search';
+const CAVEIRA_TOKEN = 'Bearer oat_MTIyMDAw.dDJSVU5VSmxaSUcyYmZRMzljai1fU3BsekV1U2FlZmVvblJNNzRhdjIxNjE1MjcwODc';
 const CORS_PROXY = 'https://corsproxy.io/?';
 
 // Helper for delay
@@ -42,6 +44,57 @@ const normalizeHistoryMatch = (match: any): HistoryMatch => {
         halftime_score_away: Number(match.halftime_score_away ?? match.scoreHTAway ?? match.ht_away ?? match.scoreHT?.away ?? 0),
         data_realizacao: match.data_realizacao || match.date || match.start_at || new Date().toISOString()
     };
+};
+
+const normalizeCaveiraMatch = (match: any): HistoryMatch => {
+    return {
+        home_player: match.player_home_name,
+        away_player: match.player_away_name,
+        league_name: match.league_name,
+        score_home: match.total_goals_home,
+        score_away: match.total_goals_away,
+        halftime_score_home: match.ht_goals_home,
+        halftime_score_away: match.ht_goals_away,
+        data_realizacao: match.time,
+        home_team: match.player_home_team_name,
+        away_team: match.player_away_team_name
+    };
+};
+
+const fetchCaveiraHistory = async (): Promise<HistoryMatch[]> => {
+    try {
+        const response = await fetch(CAVEIRA_API_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': CAVEIRA_TOKEN,
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+            },
+            body: JSON.stringify({
+                filters: {
+                    status: "3",
+                    last_7_days: "true",
+                    sort: "-time",
+                    offset: "0"
+                },
+                query: {
+                    sort: "-time",
+                    limit: 100,
+                    offset: "0"
+                }
+            })
+        });
+
+        if (!response.ok) return [];
+        const json = await response.json();
+        if (json.success && json.data && Array.isArray(json.data.results)) {
+            return json.data.results.map(normalizeCaveiraMatch);
+        }
+        return [];
+    } catch (error) {
+        console.error("Caveira API Error:", error);
+        return [];
+    }
 };
 
 export const fetchGames = async (): Promise<Game[]> => {
@@ -210,8 +263,20 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
             }).then(res => res.ok ? res.json() : null)
         );
 
-        const results = await Promise.all([...rwTipsPromises, ...green365Promises]);
+        // 3. Fetch from Caveira API (New Source)
+        const caveiraPromise = fetchCaveiraHistory();
+
+        const results = await Promise.all([...rwTipsPromises, ...green365Promises, caveiraPromise]);
         let allMatches: any[] = [];
+
+        // Handle Caveira results separately as they are already normalized
+        const caveiraMatches = results.pop(); 
+        if (Array.isArray(caveiraMatches)) {
+            // We can add them directly to the final list, but let's keep the flow
+            // Actually, fetchCaveiraHistory returns HistoryMatch[], so we don't need to normalize again.
+            // But the current flow maps everything at the end.
+            // Let's just add them to a separate list and merge at the end.
+        }
 
         results.forEach(data => {
             if (data) {
@@ -225,7 +290,10 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
             }
         });
 
-        return allMatches.map(normalizeHistoryMatch);
+        const normalizedStandard = allMatches.map(normalizeHistoryMatch);
+        
+        // Merge with Caveira matches
+        return [...normalizedStandard, ...(Array.isArray(caveiraMatches) ? caveiraMatches : [])];
     } catch (error) {
         console.error("Error fetching history games:", error);
         return [];
