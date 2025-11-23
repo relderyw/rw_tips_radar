@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { fetchHistoryGames, fetchPlayerHistory } from '../services/api';
 import { HistoryMatch } from '../types';
-import { TrendingUp, AlertTriangle, CheckCircle2, XCircle, Flame, ShieldAlert, Target, Clock, Activity, Shield, Star, Crown } from 'lucide-react';
+import { TrendingUp, AlertTriangle, CheckCircle2, XCircle, Flame, ShieldAlert, Target, Clock, Activity, Shield, Star, Crown, Zap, RefreshCw, Sunrise, Sunset } from 'lucide-react';
 
 // --- Types ---
 
@@ -13,9 +13,13 @@ type TrendType =
   | 'HT_WIN_FT_FAIL'        
   | 'OVER_25_TRAIN'         
   | 'BTTS_TRAIN'            
-  | 'SLOW_STARTER'          // Low HT goals, High Recovery
-  | 'HT_DOMINATOR'          // High HT Win Rate
-  | 'GLASS_DEFENSE'         // High Conceded
+  | 'SLOW_STARTER'          
+  | 'HT_DOMINATOR'          
+  | 'GLASS_DEFENSE'
+  | 'COMEBACK_KING'         // New: Wins FT after trailing HT
+  | 'MERCILESS'             // New: Wins by 3+ goals
+  | 'LATE_BLOOMER'          // New: Most goals in 2nd half
+  | 'EARLY_BIRD'            // New: Most goals in 1st half
   | 'NONE';
 
 interface PlayerStats {
@@ -27,9 +31,11 @@ interface PlayerStats {
   winsFT: number;
   drawsFT: number;
   lossesFT: number;
-  htScoringRate: number; // % of games with HT goal
-  recoveryRate: number; // Avg FT goals when HT goals == 0
+  htScoringRate: number; 
+  recoveryRate: number; 
   cleanSheets: number;
+  volatility: number; // Standard Deviation of Total Goals
+  dominance: number;  // Avg Goal Difference
 }
 
 interface PlayerTrend {
@@ -49,14 +55,18 @@ interface PlayerTrend {
 
 const getTrendWeight = (type: TrendType): number => {
   switch (type) {
-    case 'STREAK_BREAKER_ACTIVE': return 10;
-    case 'STREAK_JUST_BROKEN': return 9;
+    case 'STREAK_BREAKER_ACTIVE': return 12;
+    case 'STREAK_JUST_BROKEN': return 11;
+    case 'MERCILESS': return 10;
+    case 'COMEBACK_KING': return 9;
     case 'HT_WIN_FT_FAIL': return 8;
     case 'HT_DOMINATOR': return 7;
     case 'OVER_25_TRAIN': return 6;
     case 'BTTS_TRAIN': return 6;
     case 'GLASS_DEFENSE': return 5;
-    case 'SLOW_STARTER': return 4;
+    case 'LATE_BLOOMER': return 4;
+    case 'EARLY_BIRD': return 4;
+    case 'SLOW_STARTER': return 3;
     default: return 0;
   }
 };
@@ -77,6 +87,13 @@ const getMatchStats = (player: string, m: HistoryMatch) => {
   };
 };
 
+const calculateStdDev = (values: number[]): number => {
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  const squareDiffs = values.map(v => Math.pow(v - avg, 2));
+  const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / values.length;
+  return Math.sqrt(avgSquareDiff);
+};
+
 const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]): PlayerTrend | null => {
   if (!matches || matches.length < 5) return null;
 
@@ -88,14 +105,24 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
   let totalConceded = 0;
   let winsHT = 0, drawsHT = 0, lossesHT = 0;
   let winsFT = 0, drawsFT = 0, lossesFT = 0;
-  let htGoalsCount = 0; // Games with at least 1 HT goal
+  let htGoalsCount = 0; 
   let zeroHtGames = 0;
   let ftGoalsAfterZeroHt = 0;
   let cleanSheets = 0;
+  let totalGoalDiff = 0;
+  let totalGoals1stHalf = 0;
+  let totalGoals2ndHalf = 0;
+
+  const totalGoalsPerGame: number[] = [];
 
   games.forEach(g => {
     totalScored += g.ftSelf;
     totalConceded += g.ftOpp;
+    totalGoalDiff += (g.ftSelf - g.ftOpp);
+    totalGoalsPerGame.push(g.totalFT);
+
+    totalGoals1stHalf += g.htSelf;
+    totalGoals2ndHalf += (g.ftSelf - g.htSelf);
 
     if (g.htSelf > g.htOpp) winsHT++;
     else if (g.htSelf === g.htOpp) drawsHT++;
@@ -121,7 +148,9 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
     winsFT, drawsFT, lossesFT,
     htScoringRate: Math.round((htGoalsCount / 5) * 100),
     recoveryRate: zeroHtGames > 0 ? Number((ftGoalsAfterZeroHt / zeroHtGames).toFixed(1)) : 0,
-    cleanSheets
+    cleanSheets,
+    volatility: Number(calculateStdDev(totalGoalsPerGame).toFixed(2)),
+    dominance: Number((totalGoalDiff / 5).toFixed(1))
   };
 
   const detectedTrends: PlayerTrend['trends'] = [];
@@ -178,38 +207,51 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
     });
   }
 
-  // 4. Over 2.5 Train
+  // 4. Over 2.5 Train (STRICTER: 5/5 or Avg > 4.0)
   const over25Count = games.filter(g => g.totalFT > 2.5).length;
-  if (over25Count >= 4) {
+  const avgGoals = stats.avgScoredFT + stats.avgConcededFT;
+  
+  if (over25Count === 5 || (over25Count >= 4 && avgGoals >= 4.0)) {
     detectedTrends.push({
       type: 'OVER_25_TRAIN',
-      confidence: over25Count === 5 ? 92 : 80,
-      description: 'Tendência forte de Over 2.5',
+      confidence: over25Count === 5 ? 95 : 85,
+      description: 'Máquina de Gols (Over 2.5 Consistente)',
       stats: [
         { label: 'Jogos Over', value: `${over25Count}/5` },
-        { label: 'Média Gols', value: stats.avgScoredFT }
+        { label: 'Média Total', value: avgGoals.toFixed(1) }
       ]
     });
   }
 
-  // 5. BTTS Train
+  // 5. BTTS Train (STRICTER: 5/5 only)
   const bttsCount = games.filter(g => g.isBTTS).length;
-  if (bttsCount >= 4) {
+  if (bttsCount === 5) {
     detectedTrends.push({
       type: 'BTTS_TRAIN',
-      confidence: bttsCount === 5 ? 92 : 80,
-      description: 'Tendência de Ambos Marcam',
+      confidence: 95,
+      description: 'Ambos Marcam em TODOS os jogos',
       stats: [
         { label: 'BTTS', value: `${bttsCount}/5` }
       ]
     });
   }
 
-  // 6. Slow Starter
-  if (stats.htScoringRate <= 40 && stats.recoveryRate >= 1.5) {
+  // 6. Slow Starter / Late Bloomer
+  const totalGoals = totalGoals1stHalf + totalGoals2ndHalf;
+  if (totalGoals > 5 && (totalGoals2ndHalf / totalGoals) >= 0.7) {
+     detectedTrends.push({
+      type: 'LATE_BLOOMER',
+      confidence: 85,
+      description: 'Marca 70%+ dos gols no 2º Tempo',
+      stats: [
+        { label: 'Gols 2ºT', value: totalGoals2ndHalf },
+        { label: '% do Total', value: `${Math.round((totalGoals2ndHalf/totalGoals)*100)}%` }
+      ]
+    });
+  } else if (stats.htScoringRate <= 40 && stats.recoveryRate >= 1.5) {
     detectedTrends.push({
       type: 'SLOW_STARTER',
-      confidence: 85,
+      confidence: 80,
       description: 'Marca pouco no HT, mas recupera bem',
       stats: [
         { label: 'HT Rate', value: `${stats.htScoringRate}%` },
@@ -218,8 +260,18 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
     });
   }
 
-  // 7. HT Dominator
-  if (stats.winsHT >= 4) {
+  // 7. Early Bird
+  if (totalGoals > 5 && (totalGoals1stHalf / totalGoals) >= 0.7) {
+    detectedTrends.push({
+      type: 'EARLY_BIRD',
+      confidence: 85,
+      description: 'Marca 70%+ dos gols no 1º Tempo',
+      stats: [
+        { label: 'Gols 1ºT', value: totalGoals1stHalf },
+        { label: '% do Total', value: `${Math.round((totalGoals1stHalf/totalGoals)*100)}%` }
+      ]
+    });
+  } else if (stats.winsHT >= 4) {
     detectedTrends.push({
       type: 'HT_DOMINATOR',
       confidence: 88,
@@ -240,6 +292,34 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
         { label: 'Média Sofridos', value: stats.avgConcededFT }
       ]
     });
+  }
+
+  // 9. Merciless (Wins by 3+ goals in at least 2 games)
+  const blowoutWins = games.filter(g => (g.ftSelf - g.ftOpp) >= 3).length;
+  if (blowoutWins >= 2) {
+      detectedTrends.push({
+          type: 'MERCILESS',
+          confidence: 90,
+          description: 'Goleador Implacável (Vitórias por 3+ gols)',
+          stats: [
+              { label: 'Goleadas', value: `${blowoutWins}/5` },
+              { label: 'Dominância', value: stats.dominance }
+          ]
+      });
+  }
+
+  // 10. Comeback King (Trailing/Draw HT -> Win FT in at least 2 games)
+  const comebacks = games.filter(g => g.htSelf <= g.htOpp && g.ftSelf > g.ftOpp).length;
+  if (comebacks >= 2) {
+      detectedTrends.push({
+          type: 'COMEBACK_KING',
+          confidence: 92,
+          description: 'Rei da Virada (Vence após tropeço no HT)',
+          stats: [
+              { label: 'Viradas', value: `${comebacks}/5` },
+              { label: 'Mental', value: 'Forte' }
+          ]
+      });
   }
 
   if (detectedTrends.length === 0) return null;
@@ -304,15 +384,23 @@ const TrendBadge: React.FC<{ type: TrendType }> = ({ type }) => {
     case 'HT_WIN_FT_FAIL':
       return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-orange-500/20 text-orange-400 border border-orange-500/30"><ShieldAlert size={10} /> PERIGO 2º TEMPO</span>;
     case 'OVER_25_TRAIN':
-      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30"><TrendingUp size={10} /> OVER 2.5</span>;
+      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30"><TrendingUp size={10} /> MÁQUINA DE GOLS</span>;
     case 'BTTS_TRAIN':
-      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30"><Target size={10} /> BTTS</span>;
+      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30"><Target size={10} /> BTTS 100%</span>;
     case 'SLOW_STARTER':
       return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30"><Clock size={10} /> DIESEL</span>;
     case 'HT_DOMINATOR':
       return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"><Activity size={10} /> REI DO HT</span>;
     case 'GLASS_DEFENSE':
       return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30"><Shield size={10} /> DEFESA VAZADA</span>;
+    case 'MERCILESS':
+      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-fuchsia-500/20 text-fuchsia-400 border border-fuchsia-500/30"><Zap size={10} /> IMPLACÁVEL</span>;
+    case 'COMEBACK_KING':
+      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"><RefreshCw size={10} /> REI DA VIRADA</span>;
+    case 'LATE_BLOOMER':
+      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-violet-500/20 text-violet-400 border border-violet-500/30"><Sunset size={10} /> 2º TEMPO FORTE</span>;
+    case 'EARLY_BIRD':
+      return <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30"><Sunrise size={10} /> INÍCIO AVASSALADOR</span>;
     default:
       return null;
   }
@@ -486,8 +574,22 @@ export const Tendencias: React.FC = () => {
                                         <span className="text-white font-mono font-bold text-xs">{r.stats.avgConcededFT}</span>
                                     </div>
                                     <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
-                                        <span className="text-[9px] text-textMuted uppercase font-bold">Recuperação</span>
-                                        <span className="text-white font-mono font-bold text-xs">{r.stats.recoveryRate}</span>
+                                        <span className="text-[9px] text-textMuted uppercase font-bold">Volatilidade</span>
+                                        <span className={`font-mono font-bold text-xs ${r.stats.volatility < 1.5 ? 'text-emerald-400' : 'text-orange-400'}`}>{r.stats.volatility}</span>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/5">
+                                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                        <span className="text-[9px] text-textMuted uppercase font-bold">Dominância</span>
+                                        <span className={`font-mono font-bold text-xs ${r.stats.dominance > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{r.stats.dominance > 0 ? '+' : ''}{r.stats.dominance}</span>
+                                    </div>
+                                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                        <span className="text-[9px] text-textMuted uppercase font-bold">Recorde HT</span>
+                                        <span className="text-white font-mono font-bold text-xs">{r.stats.winsHT}-{r.stats.drawsHT}-{r.stats.lossesHT}</span>
+                                    </div>
+                                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                        <span className="text-[9px] text-textMuted uppercase font-bold">Recorde FT</span>
+                                        <span className="text-white font-mono font-bold text-xs">{r.stats.winsFT}-{r.stats.drawsFT}-{r.stats.lossesFT}</span>
                                     </div>
                                 </div>
                                 <div className="p-4 bg-surfaceHighlight/20">
@@ -543,18 +645,22 @@ export const Tendencias: React.FC = () => {
                                     <span className="text-white font-mono font-bold text-xs">{r.stats.avgConcededFT}</span>
                                 </div>
                                 <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
-                                    <span className="text-[9px] text-textMuted uppercase font-bold">Recuperação</span>
-                                    <span className="text-white font-mono font-bold text-xs">{r.stats.recoveryRate}</span>
+                                    <span className="text-[9px] text-textMuted uppercase font-bold">Volatilidade</span>
+                                    <span className={`font-mono font-bold text-xs ${r.stats.volatility < 1.5 ? 'text-emerald-400' : 'text-orange-400'}`}>{r.stats.volatility}</span>
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5">
+                            <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/5">
+                                <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[9px] text-textMuted uppercase font-bold">Dominância</span>
+                                    <span className={`font-mono font-bold text-xs ${r.stats.dominance > 0 ? 'text-emerald-400' : 'text-red-400'}`}>{r.stats.dominance > 0 ? '+' : ''}{r.stats.dominance}</span>
+                                </div>
                                 <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
                                     <span className="text-[9px] text-textMuted uppercase font-bold">Recorde HT</span>
-                                    <span className="text-white font-mono font-bold text-xs text-emerald-400">{r.stats.winsHT}-{r.stats.drawsHT}-{r.stats.lossesHT}</span>
+                                    <span className="text-white font-mono font-bold text-xs">{r.stats.winsHT}-{r.stats.drawsHT}-{r.stats.lossesHT}</span>
                                 </div>
                                 <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
                                     <span className="text-[9px] text-textMuted uppercase font-bold">Recorde FT</span>
-                                    <span className="text-white font-mono font-bold text-xs text-accent">{r.stats.winsFT}-{r.stats.drawsFT}-{r.stats.lossesFT}</span>
+                                    <span className="text-white font-mono font-bold text-xs">{r.stats.winsFT}-{r.stats.drawsFT}-{r.stats.lossesFT}</span>
                                 </div>
                             </div>
 
