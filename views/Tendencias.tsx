@@ -553,6 +553,8 @@ export const Tendencias: React.FC = () => {
   const [results, setResults] = useState<PlayerTrend[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [showMetricsGuide, setShowMetricsGuide] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [nextUpdateTimer, setNextUpdateTimer] = useState<number>(60);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -577,11 +579,43 @@ export const Tendencias: React.FC = () => {
     bootstrap();
   }, []);
 
+  // Auto-Refresh Timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNextUpdateTimer(prev => {
+        if (prev <= 1) return 60;
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Trigger Refresh
+  useEffect(() => {
+    if (nextUpdateTimer === 60) {
+        loadTrends();
+    }
+  }, [nextUpdateTimer]);
+
   const loadTrends = async () => {
-    const playerSet: Set<string> = playersByLeague[league] ?? new Set<string>();
+    let playerSet: Set<string>;
+    
+    if (league === 'TODAS') {
+        playerSet = new Set<string>();
+        Object.values(playersByLeague).forEach((set: any) => {
+            (set as Set<string>).forEach(p => playerSet.add(p));
+        });
+    } else {
+        playerSet = playersByLeague[league] ?? new Set<string>();
+    }
+
     const players: string[] = Array.from(playerSet);
-    const limited = players.slice(0, 40); 
+    // Increase limit for Global view to catch more top trends
+    const limit = league === 'TODAS' ? 150 : 40; 
+    const limited = players.slice(0, limit); 
+    
     setLoading(true);
+    setLastUpdate(new Date());
     
     const out: PlayerTrend[] = [];
     const CONCURRENCY = 5;
@@ -644,7 +678,17 @@ export const Tendencias: React.FC = () => {
             {availableLeagues.map(l => (
               <option key={l} value={l} className="bg-surface text-textMain">{l}</option>
             ))}
+            <option value="TODAS" className="bg-surface text-textMain font-bold">TODAS AS LIGAS</option>
           </select>
+          
+          <div className="flex items-center gap-2 px-3 py-2 bg-black/20 rounded-lg border border-white/5">
+            <div className="flex flex-col items-end">
+                <span className="text-[10px] text-textMuted leading-none">Atualiza em</span>
+                <span className="text-xs font-mono font-bold text-accent leading-none">{nextUpdateTimer}s</span>
+            </div>
+            <RefreshCw size={14} className={`text-accent ${loading ? 'animate-spin' : ''}`} />
+          </div>
+
           <button
             onClick={loadTrends}
             className="px-4 py-2 bg-accent text-surface rounded-lg text-sm font-bold hover:brightness-110 transition-all shadow-lg shadow-accent/20"
