@@ -1,11 +1,10 @@
-
 import { Game, H2HResponse, HistoryResponse, HistoryMatch, LiveGame } from '../types';
 
 // Updated to Green365 API
 const GAMES_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events';
 const H2H_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/confronto';
-// const HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas'; // Old API
-const HISTORY_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events'; // New API
+const RWTIPS_HISTORY_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas'; // Old API (Source of Truth for Standard Leagues)
+const HISTORY_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events'; // New API (Source for Adriatic)
 const PLAYER_HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/partidas-assincrono';
 const LIVE_API_URL = 'https://rwtips-r943.onrender.com/api/matches/live';
 const CORS_PROXY = 'https://corsproxy.io/?';
@@ -45,9 +44,10 @@ const normalizeHistoryMatch = (match: any): HistoryMatch => {
     };
 };
 
-export const fetchGames = async (): Promise<HistoryMatch[]> => {
-  // Reusing the optimized fetchHistoryGames logic (2 pages of 100 games)
-  return await fetchHistoryGames();
+// Helper to normalize player names (Title Case) for rwtips API
+const formatPlayerName = (name: string): string => {
+    if (!name) return "";
+    return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
 export const fetchH2H = async (player1: string, player2: string, league: string): Promise<H2HResponse | null> => {
@@ -57,10 +57,94 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
       return await resp.json();
   };
 
-// Helper to normalize player names (Title Case) for rwtips API
-const formatPlayerName = (name: string): string => {
-    if (!name) return "";
-    return name.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  // STRATEGY: Check for Adriatic League
+  if (league.includes('Adriatic') || league.includes('10 mins play')) {
+      // Use raw names for Adriatic as they come from the same source (Green365)
+      const url = `https://api.green365.com.br/api/e-soccer/event/stats?homeID=null&awayID=null&home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&league=null&eventID=0&period=last_30`;
+      
+      try {
+          const data = await tryFetch(url);
+          if (data) {
+              const matches = (data.gameMutualInformation?.lastGames || []).map((g: any) => ({
+                  home_player: g.home.includes('(') ? g.home.split('(')[1].replace(')', '') : g.home,
+                  away_player: g.away.includes('(') ? g.away.split('(')[1].replace(')', '') : g.away,
+                  league_name: league,
+                  score_home: Number((g.score || "0-0").split('-')[0]),
+                  score_away: Number((g.score || "0-0").split('-')[1]),
+                  halftime_score_home: Number((g.scoreHT || "0-0").split('-')[0]),
+                  halftime_score_away: Number((g.scoreHT || "0-0").split('-')[1]),
+                  data_realizacao: g.date ? new Date(g.timestamp * 1000).toISOString() : new Date().toISOString()
+              }));
+
+              const total = matches.length;
+              const p1WinsCount = matches.filter((m: any) => m.score_home > m.score_away && m.home_player.includes(player1) || m.score_away > m.score_home && m.away_player.includes(player1)).length;
+              const p2WinsCount = matches.filter((m: any) => m.score_home > m.score_away && m.home_player.includes(player2) || m.score_away > m.score_home && m.away_player.includes(player2)).length;
+              const drawsCount = matches.filter((m: any) => m.score_home === m.score_away).length;
+
+              return {
+                  total_matches: total,
+                  player1_wins: p1WinsCount,
+                  player2_wins: p2WinsCount,
+                  draws: drawsCount,
+                  player1_win_percentage: total > 0 ? (p1WinsCount / total) * 100 : 0,
+                  player2_win_percentage: total > 0 ? (p2WinsCount / total) * 100 : 0,
+                  draw_percentage: total > 0 ? (drawsCount / total) * 100 : 0,
+                  matches: matches,
+                  player1_stats: data.players?.playerA,
+                  player2_stats: data.players?.playerB
+              };
+          }
+      } catch (e) {
+          console.error("Adriatic H2H Error:", e);
+          return null;
+      }
+  } else {
+      // Standard Leagues: Use rwtips API with NORMALIZED names
+      const p1Formatted = formatPlayerName(player1);
+      const p2Formatted = formatPlayerName(player2);
+      const url = `${H2H_API_URL}/${encodeURIComponent(p1Formatted)}/${encodeURIComponent(p2Formatted)}?page=1&limit=20`;
+      
+      try {
+          const data = await tryFetch(url);
+          const matches = (data.confrontos || []).map(normalizeHistoryMatch);
+          
+          const total = data.total_jogos || matches.length;
+          const p1Wins = data.vitorias_jogador1 || 0;
+          const p2Wins = data.vitorias_jogador2 || 0;
+          const draws = data.empates || 0;
+
+          return {
+              total_matches: total,
+              player1_wins: p1Wins,
+              player2_wins: p2Wins,
+              draws: draws,
+              player1_win_percentage: total > 0 ? (p1Wins / total) * 100 : 0,
+              player2_win_percentage: total > 0 ? (p2Wins / total) * 100 : 0,
+              draw_percentage: total > 0 ? (draws / total) * 100 : 0,
+              matches: matches
+          };
+      } catch (e) {
+          console.error("H2H Fetch Error:", e);
+          return null;
+      }
+  }
+  return null;
+};
+
+// Simple in-memory cache
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+const playerHistoryCache = new Map<string, { timestamp: number, data: HistoryMatch[] }>();
+
+const getCache = (key: string) => {
+    if (playerHistoryCache.has(key)) {
+        const cached = playerHistoryCache.get(key)!;
+        if (Date.now() - cached.timestamp < CACHE_TTL) return cached.data;
+    }
+    return null;
+};
+
+const setCache = (key: string, data: HistoryMatch[]) => {
+    playerHistoryCache.set(key, { timestamp: Date.now(), data });
 };
 
 export const fetchPlayerHistory = async (player: string, limit: number = 20): Promise<HistoryMatch[]> => {
@@ -87,122 +171,39 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20): Pr
         return [];
     }
 };
-export const fetchH2H = async (player1: string, player2: string, league: string): Promise<H2HResponse | null> => {
-  const tryFetch = async (url: string) => {
-      const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      return await resp.json();
-  };
-
-  // STRATEGY: Check for Adriatic League
-  if (league.includes('Adriatic') || league.includes('10 mins play')) {
-      // Use raw names for Adriatic as they come from the same source (Green365)
-      const url = `https://api.green365.com.br/api/e-soccer/event/stats?homeID=null&awayID=null&home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&league=null&eventID=0&period=last_30`;
-      
-      try {
-          const data = await tryFetch(url);
-          return null; // Abort to view file
-      } catch (e) { return null; }
-  }
-  return null;
-};
-          const data = await tryFetch(url);
-          
-          if (data && data.gameMutualInformation && Array.isArray(data.gameMutualInformation.lastGames)) {
-              const rawMatches = data.gameMutualInformation.lastGames;
-              
-              const matches: HistoryMatch[] = rawMatches.map((m: any) => {
-                  const [homeScore, awayScore] = (m.score || "0-0").split('-').map(Number);
-                  const [htHome, htAway] = (m.scoreHT || "0-0").split('-').map(Number);
-                  
-                  return {
-                      home_player: m.home.includes('(') ? m.home.split('(')[1].replace(')', '') : m.home, // Extract name from "Team (Player)"
-                      away_player: m.away.includes('(') ? m.away.split('(')[1].replace(')', '') : m.away,
-                      score_home: homeScore,
-                      score_away: awayScore,
-                      halftime_score_home: htHome,
-                      halftime_score_away: htAway,
-                      data_realizacao: m.date ? new Date(m.timestamp * 1000).toISOString() : new Date().toISOString(),
-                      home_team: m.home.includes('(') ? m.home.split('(')[0].trim() : undefined,
-                      away_team: m.away.includes('(') ? m.away.split('(')[0].trim() : undefined
-                  };
-              });
-
-              // Calculate stats manually since the API structure is different
-              let p1WinsCount = 0;
-              let p2WinsCount = 0;
-              let drawsCount = 0;
-              
-              matches.forEach(m => {
-                  // Normalize names for comparison (case insensitive, trim)
-                  const hName = m.home_player.toLowerCase();
-                  const p1Name = player1.toLowerCase();
-                  
-                  let p1IsHome = hName.includes(p1Name);
-                  
-                  if (m.score_home === m.score_away) {
-                      drawsCount++;
-                  } else if (m.score_home > m.score_away) {
-                      if (p1IsHome) p1WinsCount++; else p2WinsCount++;
-                  } else {
-                      if (p1IsHome) p2WinsCount++; else p1WinsCount++;
-                  }
-              });
-
-              const total = matches.length;
-              
-              return {
-                  total_matches: total,
-                  player1_wins: p1WinsCount,
-                  player2_wins: p2WinsCount,
-                  draws: drawsCount,
-                  player1_win_percentage: total > 0 ? (p1WinsCount / total) * 100 : 0,
-                  player2_win_percentage: total > 0 ? (p2WinsCount / total) * 100 : 0,
-                  draw_percentage: total > 0 ? (drawsCount / total) * 100 : 0,
-                  matches: matches,
-                  player1_stats: data.players?.playerA,
-                  player2_stats: data.players?.playerB
-              };
-          }
-      } catch (e) {
-          console.error("Error fetching Adriatic H2H:", e);
-          // Fallback to standard flow if this fails
-      }
-  }
-
-  const baseUrl = `${H2H_API_URL}/${encodeURIComponent(player1)}/${encodeURIComponent(player2)}?page=1&limit=30&league=${encodeURIComponent(league)}`;
-
-  try {
-      const data = await tryFetch(baseUrl);
-      
-      // Normalize matches inside H2H response to ensure stats are correct
-      if (data && data.matches && Array.isArray(data.matches)) {
-          data.matches = data.matches.map(normalizeHistoryMatch);
-      }
-      
-      return data;
-  } catch (error) {
-      console.error("H2H Fetch Error", error);
-      return null;
-  }
-};
 
 export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     try {
-        // Fetch 2 pages of 100 games each (Total 200 games)
+        // STRATEGY: Fetch from BOTH APIs to ensure we have:
+        // 1. Correct casing/names for Standard Leagues (from RWTips)
+        // 2. Adriatic League data (from Green365)
+        
         const pages = [1, 2];
-        const promises = pages.map(page => 
+        
+        // 1. Fetch from RWTips (Old API)
+        const rwTipsPromises = pages.map(page => 
+            fetch(`${RWTIPS_HISTORY_URL}?page=${page}&limit=100&sport=esoccer&status=ended`, { 
+                headers: { 'Accept': 'application/json' } 
+            }).then(res => res.ok ? res.json() : null)
+        );
+
+        // 2. Fetch from Green365 (New API)
+        const green365Promises = pages.map(page => 
             fetch(`${HISTORY_API_URL}?page=${page}&limit=100&sport=esoccer&status=ended`, { 
                 headers: { 'Accept': 'application/json' } 
             }).then(res => res.ok ? res.json() : null)
         );
 
-        const results = await Promise.all(promises);
+        const results = await Promise.all([...rwTipsPromises, ...green365Promises]);
         let allMatches: any[] = [];
 
         results.forEach(data => {
             if (data) {
+                // Green365 structure
                 if (data.items && Array.isArray(data.items)) allMatches = [...allMatches, ...data.items];
+                // RWTips structure
+                else if (data.partidas && Array.isArray(data.partidas)) allMatches = [...allMatches, ...data.partidas];
+                // Fallbacks
                 else if (data.data && Array.isArray(data.data)) allMatches = [...allMatches, ...data.data];
                 else if (Array.isArray(data)) allMatches = [...allMatches, ...data];
             }
@@ -215,84 +216,6 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     }
 };
 
-// Simple in-memory cache
-const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
-const playerHistoryCache = new Map<string, { timestamp: number, data: HistoryMatch[] }>();
-
-export const fetchPlayerHistory = async (player: string, limit: number = 20, playerId?: number): Promise<HistoryMatch[]> => {
-    const cacheKey = `${player}-${playerId || 'noid'}-${limit}`;
-    
-    // Check Cache
-    if (playerHistoryCache.has(cacheKey)) {
-        const cached = playerHistoryCache.get(cacheKey)!;
-        if (Date.now() - cached.timestamp < CACHE_TTL) {
-            // console.log(`Cache hit for ${player}`);
-            return cached.data;
-        }
-    }
-
-    try {
-        // STRATEGY 1: If we have a Player ID, use the Analysis API (Required for Adriatic)
-        if (playerId) {
-            const url = `https://api-v2.green365.com.br/api/v2/analysis/participant?sport=esoccer&participantID=${playerId}&participantName=${encodeURIComponent(player)}`;
-            const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-            
-            if (response.ok) {
-                const data = await response.json();
-                // The structure is: sessions -> sessionEvents -> events
-                // We need to find the 'events' array inside sessionEvents
-                // Based on user sample: data.sessions.sessionEvents.events
-                
-                // However, the user sample showed:
-                // sessions: { ... }
-                // sessionEvents: { category: "events", events: [...] }
-                // It seems 'sessionEvents' might be at the root or inside sessions?
-                // Let's try to find 'events' array recursively or check specific paths.
-                
-                // User sample:
-                // { sport: "esoccer", sessions: {...}, sessionEvents: { category: "events", events: [...] } }
-                
-                let rawEvents: any[] = [];
-                
-                if (data.sessionEvents && Array.isArray(data.sessionEvents.events)) {
-                    rawEvents = data.sessionEvents.events;
-                } else if (data.sessions && data.sessions.sessionEvents && Array.isArray(data.sessions.sessionEvents.events)) {
-                     rawEvents = data.sessions.sessionEvents.events;
-                }
-
-                if (rawEvents.length > 0) {
-                    const result = rawEvents.slice(0, limit).map(normalizeHistoryMatch);
-                    playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
-                    return result;
-                }
-            }
-        }
-
-        // STRATEGY 2: Fallback to old API (Name based)
-        const url = `${PLAYER_HISTORY_API_URL}?jogador=${encodeURIComponent(player)}&limit=${limit}&page=1`;
-        const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const data = await response.json();
-        let rawMatches: any[] = [];
-
-        if (data.partidas && Array.isArray(data.partidas)) rawMatches = data.partidas;
-        else if (Array.isArray(data)) rawMatches = data;
-        else if (data.matches && Array.isArray(data.matches)) rawMatches = data.matches;
-
-        if (rawMatches.length > 0) {
-            const result = rawMatches.map(normalizeHistoryMatch);
-            playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
-            return result;
-        }
-        return [];
-
-    } catch (error) {
-        console.error(`Error fetching specific history for player ${player} (ID: ${playerId}):`, error);
-        return [];
-    }
-};
 
 export const fetchLiveGames = async (): Promise<LiveGame[]> => {
     try {
