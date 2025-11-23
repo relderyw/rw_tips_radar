@@ -546,6 +546,79 @@ const MetricsGuideModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
   );
 };
 
+const CompactTableView: React.FC<{ data: PlayerTrend[] }> = ({ data }) => {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-white/5 bg-surfaceHighlight/10">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="bg-white/5 text-textMuted text-[10px] uppercase tracking-wider border-b border-white/10">
+            <th className="p-3 font-bold">Jogador / Liga</th>
+            <th className="p-3 font-bold">Tendência Principal</th>
+            <th className="p-3 font-bold text-center">Confiança</th>
+            <th className="p-3 font-bold text-center">Gols (M)</th>
+            <th className="p-3 font-bold text-center">Sofridos (M)</th>
+            <th className="p-3 font-bold text-center">Volatilidade</th>
+            <th className="p-3 font-bold text-center">Dominância</th>
+            <th className="p-3 font-bold text-right">Últimos 5</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {data.map((r, idx) => (
+            <tr key={`${r.player}-${idx}`} className="hover:bg-white/5 transition-colors group">
+              <td className="p-3">
+                <div className="flex flex-col">
+                  <span className="font-bold text-white text-sm group-hover:text-accent transition-colors">{r.player}</span>
+                  <span className="text-[10px] text-textMuted">Liga {r.league}</span>
+                </div>
+              </td>
+              <td className="p-3">
+                <div className="flex flex-col gap-1">
+                    <TrendBadge type={r.trends[0].type} />
+                    <span className="text-[10px] text-textMuted truncate max-w-[200px]">{r.trends[0].description}</span>
+                </div>
+              </td>
+              <td className="p-3 text-center">
+                <div className="flex justify-center">
+                    <ConfidenceMeter confidence={r.trends[0].confidence} />
+                </div>
+              </td>
+              <td className="p-3 text-center font-mono text-xs text-white">
+                {r.stats.avgScoredFT}
+              </td>
+              <td className="p-3 text-center font-mono text-xs text-white">
+                {r.stats.avgConcededFT}
+              </td>
+              <td className="p-3 text-center">
+                 <span className={`font-mono text-xs font-bold ${r.stats.volatility < 1.5 ? 'text-emerald-400' : 'text-orange-400'}`}>
+                    {r.stats.volatility}
+                 </span>
+              </td>
+              <td className="p-3 text-center">
+                <span className={`font-mono text-xs font-bold ${r.stats.dominance > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {r.stats.dominance > 0 ? '+' : ''}{r.stats.dominance}
+                </span>
+              </td>
+              <td className="p-3">
+                <div className="flex justify-end gap-1">
+                    {[...r.last5].reverse().map((m, i) => {
+                         const stats = getMatchStats(r.player, m);
+                         const isWin = stats.ftSelf > stats.ftOpp;
+                         const isDraw = stats.ftSelf === stats.ftOpp;
+                         const color = isWin ? 'bg-emerald-500' : isDraw ? 'bg-gray-500' : 'bg-red-500';
+                         return (
+                             <div key={i} className={`w-1.5 h-4 rounded-sm ${color} opacity-80`} title={`${stats.ftSelf}-${stats.ftOpp}`} />
+                         );
+                    })}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 export const Tendencias: React.FC = () => {
   const [league, setLeague] = useState<string>('A');
   const [availableLeagues, setAvailableLeagues] = useState<string[]>([]);
@@ -712,6 +785,8 @@ export const Tendencias: React.FC = () => {
           <XCircle size={48} className="text-white/20" />
           <p>Nenhum padrão de alta confiança encontrado para os jogadores desta liga no momento.</p>
         </div>
+      ) : league === 'TODAS' ? (
+        <CompactTableView data={results} />
       ) : (
         <>
             {/* Top Picks Section */}
@@ -860,6 +935,7 @@ export const Tendencias: React.FC = () => {
             )}
         </>
       )}
+      
       <MetricsGuideModal isOpen={showMetricsGuide} onClose={() => setShowMetricsGuide(false)} />
     </div>
   );
