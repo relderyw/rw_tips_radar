@@ -127,7 +127,22 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     return [];
 };
 
+// Simple in-memory cache
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+const playerHistoryCache = new Map<string, { timestamp: number, data: HistoryMatch[] }>();
+
 export const fetchPlayerHistory = async (player: string, limit: number = 20, playerId?: number): Promise<HistoryMatch[]> => {
+    const cacheKey = `${player}-${playerId || 'noid'}-${limit}`;
+    
+    // Check Cache
+    if (playerHistoryCache.has(cacheKey)) {
+        const cached = playerHistoryCache.get(cacheKey)!;
+        if (Date.now() - cached.timestamp < CACHE_TTL) {
+            // console.log(`Cache hit for ${player}`);
+            return cached.data;
+        }
+    }
+
     try {
         // STRATEGY 1: If we have a Player ID, use the Analysis API (Required for Adriatic)
         if (playerId) {
@@ -158,7 +173,9 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
                 }
 
                 if (rawEvents.length > 0) {
-                    return rawEvents.slice(0, limit).map(normalizeHistoryMatch);
+                    const result = rawEvents.slice(0, limit).map(normalizeHistoryMatch);
+                    playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
+                    return result;
                 }
             }
         }
@@ -177,7 +194,9 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
         else if (data.matches && Array.isArray(data.matches)) rawMatches = data.matches;
 
         if (rawMatches.length > 0) {
-            return rawMatches.map(normalizeHistoryMatch);
+            const result = rawMatches.map(normalizeHistoryMatch);
+            playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
+            return result;
         }
         return [];
 

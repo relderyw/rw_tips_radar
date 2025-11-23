@@ -445,9 +445,32 @@ const MetricsGuideModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
             
             {/* Estatísticas Base */}
             <div className="space-y-6">
-              <h3 className="text-lg font-bold text-white border-b border-white/10 pb-2">Estatísticas Avançadas</h3>
+              <h3 className="text-lg font-bold text-white border-b border-white/10 pb-2">Glossário de Estatísticas</h3>
               
               <div className="space-y-4">
+                <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5">
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                      <div>
+                          <span className="text-[10px] text-textMuted uppercase font-bold block">Gols</span>
+                          <p className="text-xs text-white">Média de gols marcados por jogo (FT).</p>
+                      </div>
+                      <div>
+                          <span className="text-[10px] text-textMuted uppercase font-bold block">Sofridos</span>
+                          <p className="text-xs text-white">Média de gols sofridos por jogo (FT).</p>
+                      </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                          <span className="text-[10px] text-textMuted uppercase font-bold block">Recorde HT</span>
+                          <p className="text-xs text-white">Vitórias - Empates - Derrotas (1º Tempo).</p>
+                      </div>
+                      <div>
+                          <span className="text-[10px] text-textMuted uppercase font-bold block">Recorde FT</span>
+                          <p className="text-xs text-white">Vitórias - Empates - Derrotas (Jogo Todo).</p>
+                      </div>
+                  </div>
+                </div>
+
                 <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5">
                   <div className="flex items-center gap-2 mb-2">
                     <Activity className="text-emerald-400" size={18} />
@@ -629,7 +652,7 @@ export const Tendencias: React.FC = () => {
   const [progress, setProgress] = useState<string>('');
   const [showMetricsGuide, setShowMetricsGuide] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  const [nextUpdateTimer, setNextUpdateTimer] = useState<number>(60);
+  const [nextUpdateTimer, setNextUpdateTimer] = useState<number>(120);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -665,7 +688,7 @@ export const Tendencias: React.FC = () => {
   useEffect(() => {
     const timer = setInterval(() => {
       setNextUpdateTimer(prev => {
-        if (prev <= 1) return 60;
+        if (prev <= 1) return 120;
         return prev - 1;
       });
     }, 1000);
@@ -674,7 +697,7 @@ export const Tendencias: React.FC = () => {
 
   // Trigger Refresh
   useEffect(() => {
-    if (nextUpdateTimer === 60) {
+    if (nextUpdateTimer === 120) {
         loadTrends();
     }
   }, [nextUpdateTimer]);
@@ -709,7 +732,7 @@ export const Tendencias: React.FC = () => {
     setLastUpdate(new Date());
     
     const out: PlayerTrend[] = [];
-    const CONCURRENCY = 5;
+    const CONCURRENCY = 8;
     
     for (let i = 0; i < limited.length; i += CONCURRENCY) {
       setProgress(`Analisando ${i} de ${limited.length}...`);
