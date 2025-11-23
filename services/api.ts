@@ -181,19 +181,30 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
 
 export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     try {
-        // Updated to use new API params
-        const url = `${HISTORY_API_URL}?page=1&limit=100&sport=esoccer&status=ended`;
-        const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        if(response.ok) {
-            const data = await response.json();
-            // New API structure: data.items
-            const raw = data.items || data.partidas || data.matches || (Array.isArray(data) ? data : []);
-            return raw.map(normalizeHistoryMatch);
-        }
-    } catch (e) {
-        console.error("Failed to fetch history games list", e);
+        // Fetch 2 pages of 100 games each (Total 200 games)
+        const pages = [1, 2];
+        const promises = pages.map(page => 
+            fetch(`${HISTORY_API_URL}?page=${page}&limit=100&sport=esoccer&status=ended`, { 
+                headers: { 'Accept': 'application/json' } 
+            }).then(res => res.ok ? res.json() : null)
+        );
+
+        const results = await Promise.all(promises);
+        let allMatches: any[] = [];
+
+        results.forEach(data => {
+            if (data) {
+                if (data.items && Array.isArray(data.items)) allMatches = [...allMatches, ...data.items];
+                else if (data.data && Array.isArray(data.data)) allMatches = [...allMatches, ...data.data];
+                else if (Array.isArray(data)) allMatches = [...allMatches, ...data];
+            }
+        });
+
+        return allMatches.map(normalizeHistoryMatch);
+    } catch (error) {
+        console.error("Error fetching history games:", error);
+        return [];
     }
-    return [];
 };
 
 // Simple in-memory cache
