@@ -1,8 +1,9 @@
+
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { fetchHistoryGames, fetchPlayerHistory } from '../services/api';
 import { HistoryMatch } from '../types';
-import { TrendingUp, AlertTriangle, CheckCircle2, XCircle, Flame, ShieldAlert, Target, Clock, Activity, Shield } from 'lucide-react';
+import { TrendingUp, AlertTriangle, CheckCircle2, XCircle, Flame, ShieldAlert, Target, Clock, Activity, Shield, Star, Crown } from 'lucide-react';
 
 // --- Types ---
 
@@ -45,6 +46,20 @@ interface PlayerTrend {
 }
 
 // --- Helpers ---
+
+const getTrendWeight = (type: TrendType): number => {
+  switch (type) {
+    case 'STREAK_BREAKER_ACTIVE': return 10;
+    case 'STREAK_JUST_BROKEN': return 9;
+    case 'HT_WIN_FT_FAIL': return 8;
+    case 'HT_DOMINATOR': return 7;
+    case 'OVER_25_TRAIN': return 6;
+    case 'BTTS_TRAIN': return 6;
+    case 'GLASS_DEFENSE': return 5;
+    case 'SLOW_STARTER': return 4;
+    default: return 0;
+  }
+};
 
 const safeNum = (n: number | undefined | null) => Number(n ?? 0);
 
@@ -121,7 +136,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
     const avgHt = (recent4.reduce((acc, g) => acc + g.htSelf, 0) / 4).toFixed(2);
     detectedTrends.push({
       type: 'STREAK_BREAKER_ACTIVE',
-      confidence: 95,
+      confidence: 98,
       description: 'Sequência Ativa de HT (4 jogos) após quebra',
       stats: [
         { label: 'Média HT (Seq)', value: avgHt },
@@ -140,7 +155,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
     const avgHt = (prev4.reduce((acc, g) => acc + g.htSelf, 0) / 4).toFixed(2);
     detectedTrends.push({
       type: 'STREAK_JUST_BROKEN',
-      confidence: 90,
+      confidence: 95,
       description: 'Quebra de Padrão HT no último jogo',
       stats: [
         { label: 'Média HT (Ant)', value: avgHt },
@@ -154,7 +169,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
   if (htWinFtFailCount >= 2) {
     detectedTrends.push({
       type: 'HT_WIN_FT_FAIL',
-      confidence: htWinFtFailCount >= 3 ? 85 : 60,
+      confidence: htWinFtFailCount >= 3 ? 90 : 75,
       description: 'Vence HT mas tropeça no FT',
       stats: [
         { label: 'Ocorrências', value: `${htWinFtFailCount}/5` },
@@ -168,7 +183,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
   if (over25Count >= 4) {
     detectedTrends.push({
       type: 'OVER_25_TRAIN',
-      confidence: over25Count === 5 ? 90 : 75,
+      confidence: over25Count === 5 ? 92 : 80,
       description: 'Tendência forte de Over 2.5',
       stats: [
         { label: 'Jogos Over', value: `${over25Count}/5` },
@@ -182,7 +197,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
   if (bttsCount >= 4) {
     detectedTrends.push({
       type: 'BTTS_TRAIN',
-      confidence: bttsCount === 5 ? 90 : 75,
+      confidence: bttsCount === 5 ? 92 : 80,
       description: 'Tendência de Ambos Marcam',
       stats: [
         { label: 'BTTS', value: `${bttsCount}/5` }
@@ -194,7 +209,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
   if (stats.htScoringRate <= 40 && stats.recoveryRate >= 1.5) {
     detectedTrends.push({
       type: 'SLOW_STARTER',
-      confidence: 80,
+      confidence: 85,
       description: 'Marca pouco no HT, mas recupera bem',
       stats: [
         { label: 'HT Rate', value: `${stats.htScoringRate}%` },
@@ -207,7 +222,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
   if (stats.winsHT >= 4) {
     detectedTrends.push({
       type: 'HT_DOMINATOR',
-      confidence: 85,
+      confidence: 88,
       description: 'Domina o primeiro tempo',
       stats: [
         { label: 'Vitórias HT', value: `${stats.winsHT}/5` }
@@ -219,7 +234,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
   if (stats.avgConcededFT >= 2.5) {
     detectedTrends.push({
       type: 'GLASS_DEFENSE',
-      confidence: 80,
+      confidence: 85,
       description: 'Defesa frágil (Muitos gols sofridos)',
       stats: [
         { label: 'Média Sofridos', value: stats.avgConcededFT }
@@ -229,7 +244,12 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
 
   if (detectedTrends.length === 0) return null;
 
-  detectedTrends.sort((a, b) => b.confidence - a.confidence);
+  detectedTrends.sort((a, b) => {
+      const weightA = getTrendWeight(a.type);
+      const weightB = getTrendWeight(b.type);
+      if (weightA !== weightB) return weightB - weightA;
+      return b.confidence - a.confidence;
+  });
 
   return {
     player,
@@ -298,6 +318,21 @@ const TrendBadge: React.FC<{ type: TrendType }> = ({ type }) => {
   }
 };
 
+const ConfidenceMeter: React.FC<{ confidence: number }> = ({ confidence }) => {
+    const stars = Math.round(confidence / 20);
+    return (
+        <div className="flex gap-0.5" title={`Confiança: ${confidence}%`}>
+            {[...Array(5)].map((_, i) => (
+                <Star 
+                    key={i} 
+                    size={10} 
+                    className={i < stars ? "fill-accent text-accent" : "fill-white/10 text-white/10"} 
+                />
+            ))}
+        </div>
+    );
+};
+
 export const Tendencias: React.FC = () => {
   const [league, setLeague] = useState<string>('A');
   const [availableLeagues, setAvailableLeagues] = useState<string[]>([]);
@@ -346,7 +381,13 @@ export const Tendencias: React.FC = () => {
       batchResults.forEach(t => { if (t) out.push(t); });
     }
 
-    out.sort((a, b) => b.trends[0].confidence - a.trends[0].confidence);
+    // Sort by Weight then Confidence
+    out.sort((a, b) => {
+        const weightA = getTrendWeight(a.trends[0].type);
+        const weightB = getTrendWeight(b.trends[0].type);
+        if (weightA !== weightB) return weightB - weightA;
+        return b.trends[0].confidence - a.trends[0].confidence;
+    });
 
     setResults(out);
     setLoading(false);
@@ -356,8 +397,11 @@ export const Tendencias: React.FC = () => {
     if (playersByLeague[league]) loadTrends();
   }, [league, playersByLeague]);
 
+  const topPicks = results.slice(0, 3);
+  const otherPicks = results.slice(3);
+
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in pb-12">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-surfaceHighlight/30 p-6 rounded-2xl border border-white/5 backdrop-blur-sm">
         <div>
@@ -366,7 +410,7 @@ export const Tendencias: React.FC = () => {
              Padrões e Tendências
            </h2>
            <p className="text-textMuted mt-1">
-             Algoritmo de detecção de padrões nos últimos 5 jogos.
+             Algoritmo de detecção de padrões de alta assertividade.
            </p>
         </div>
         
@@ -396,7 +440,7 @@ export const Tendencias: React.FC = () => {
                 <div className="w-16 h-16 border-4 border-surfaceHighlight rounded-full"></div>
                 <div className="w-16 h-16 border-4 border-accent border-t-transparent rounded-full animate-spin absolute top-0 left-0"></div>
             </div>
-            <p className="text-textMuted animate-pulse font-medium">Analisando partidas e calculando probabilidades...</p>
+            <p className="text-textMuted animate-pulse font-medium">Calculando probabilidades e assertividade...</p>
         </div>
       ) : results.length === 0 ? (
         <div className="text-center py-24 text-textMuted bg-surface/30 rounded-2xl border border-white/5 flex flex-col items-center gap-4">
@@ -404,68 +448,134 @@ export const Tendencias: React.FC = () => {
           <p>Nenhum padrão de alta confiança encontrado para os jogadores desta liga no momento.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {results.map(r => {
-            const primaryTrend = r.trends[0];
-            return (
-              <Card key={r.player} className="group hover:border-accent/30 transition-all duration-300 overflow-hidden">
-                {/* Card Header */}
-                <div className="p-5 bg-gradient-to-br from-white/5 to-transparent border-b border-white/5">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="text-white font-bold text-xl truncate group-hover:text-accent transition-colors">{r.player}</h3>
-                      <p className="text-xs text-textMuted font-medium uppercase tracking-wider">Liga {r.league}</p>
+        <>
+            {/* Top Picks Section */}
+            {topPicks.length > 0 && (
+                <div className="space-y-4">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                        <Crown className="text-yellow-400 fill-yellow-400" size={20} />
+                        Top Oportunidades
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {topPicks.map(r => (
+                            <Card key={r.player} className="group relative hover:border-accent/50 transition-all duration-300 overflow-hidden ring-1 ring-accent/20 bg-surfaceHighlight/10">
+                                <div className="absolute top-0 right-0 p-2">
+                                    <ConfidenceMeter confidence={r.trends[0].confidence} />
+                                </div>
+                                <div className="p-5 border-b border-white/5">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <h3 className="text-white font-bold text-xl truncate">{r.player}</h3>
+                                            <p className="text-xs text-textMuted font-medium uppercase tracking-wider">Liga {r.league}</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-2">
+                                        <TrendBadge type={r.trends[0].type} />
+                                    </div>
+                                    <p className="text-sm text-white/80 mt-3 leading-relaxed">
+                                        {r.trends[0].description}
+                                    </p>
+                                </div>
+                                <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/5">
+                                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                        <span className="text-[9px] text-textMuted uppercase font-bold">Gols</span>
+                                        <span className="text-white font-mono font-bold text-xs">{r.stats.avgScoredFT}</span>
+                                    </div>
+                                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                        <span className="text-[9px] text-textMuted uppercase font-bold">Sofridos</span>
+                                        <span className="text-white font-mono font-bold text-xs">{r.stats.avgConcededFT}</span>
+                                    </div>
+                                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                        <span className="text-[9px] text-textMuted uppercase font-bold">Recuperação</span>
+                                        <span className="text-white font-mono font-bold text-xs">{r.stats.recoveryRate}</span>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-surfaceHighlight/20">
+                                    <div className="flex justify-between gap-2">
+                                        {[...r.last5].reverse().map((m, i) => (
+                                            <MatchMiniature key={i} player={r.player} match={m} />
+                                        ))}
+                                    </div>
+                                </div>
+                            </Card>
+                        ))}
                     </div>
-                    <TrendBadge type={primaryTrend.type} />
-                  </div>
-                  
-                  <p className="text-sm text-white/80 mt-2 leading-relaxed">
-                    {primaryTrend.description}
-                  </p>
                 </div>
+            )}
 
-                {/* Detailed Stats Grid */}
-                <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/5">
-                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
-                        <span className="text-[9px] text-textMuted uppercase font-bold">Gols Feitos</span>
-                        <span className="text-white font-mono font-bold text-xs">{r.stats.avgScoredFT}</span>
-                    </div>
-                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
-                        <span className="text-[9px] text-textMuted uppercase font-bold">Gols Sofridos</span>
-                        <span className="text-white font-mono font-bold text-xs">{r.stats.avgConcededFT}</span>
-                    </div>
-                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
-                        <span className="text-[9px] text-textMuted uppercase font-bold">Recuperação</span>
-                        <span className="text-white font-mono font-bold text-xs">{r.stats.recoveryRate}</span>
-                    </div>
-                </div>
-                <div className="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5">
-                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
-                        <span className="text-[9px] text-textMuted uppercase font-bold">Recorde HT</span>
-                        <span className="text-white font-mono font-bold text-xs text-emerald-400">{r.stats.winsHT}-{r.stats.drawsHT}-{r.stats.lossesHT}</span>
-                    </div>
-                    <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
-                        <span className="text-[9px] text-textMuted uppercase font-bold">Recorde FT</span>
-                        <span className="text-white font-mono font-bold text-xs text-accent">{r.stats.winsFT}-{r.stats.drawsFT}-{r.stats.lossesFT}</span>
-                    </div>
-                </div>
+            {/* Other Picks */}
+            {otherPicks.length > 0 && (
+                <div className="space-y-4">
+                     <h3 className="text-lg font-bold text-textMuted flex items-center gap-2">
+                        Outras Tendências
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {otherPicks.map(r => {
+                        const primaryTrend = r.trends[0];
+                        return (
+                        <Card key={r.player} className="group hover:border-accent/30 transition-all duration-300 overflow-hidden">
+                            <div className="absolute top-0 right-0 p-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                                <ConfidenceMeter confidence={primaryTrend.confidence} />
+                            </div>
+                            <div className="p-5 bg-gradient-to-br from-white/5 to-transparent border-b border-white/5">
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                <h3 className="text-white font-bold text-xl truncate group-hover:text-accent transition-colors">{r.player}</h3>
+                                <p className="text-xs text-textMuted font-medium uppercase tracking-wider">Liga {r.league}</p>
+                                </div>
+                            </div>
+                            <div className="mt-1">
+                                <TrendBadge type={primaryTrend.type} />
+                            </div>
+                            
+                            <p className="text-sm text-white/80 mt-2 leading-relaxed">
+                                {primaryTrend.description}
+                            </p>
+                            </div>
 
-                {/* Visual History */}
-                <div className="p-4 bg-surfaceHighlight/20">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-[10px] text-textMuted uppercase font-bold">Últimos 5 Jogos</span>
-                    <span className="text-[10px] text-textMuted">(Mais recente à direita)</span>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    {[...r.last5].reverse().map((m, i) => (
-                      <MatchMiniature key={i} player={r.player} match={m} />
-                    ))}
-                  </div>
+                            <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/5">
+                                <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[9px] text-textMuted uppercase font-bold">Gols</span>
+                                    <span className="text-white font-mono font-bold text-xs">{r.stats.avgScoredFT}</span>
+                                </div>
+                                <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[9px] text-textMuted uppercase font-bold">Sofridos</span>
+                                    <span className="text-white font-mono font-bold text-xs">{r.stats.avgConcededFT}</span>
+                                </div>
+                                <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[9px] text-textMuted uppercase font-bold">Recuperação</span>
+                                    <span className="text-white font-mono font-bold text-xs">{r.stats.recoveryRate}</span>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-px bg-white/5 border-b border-white/5">
+                                <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[9px] text-textMuted uppercase font-bold">Recorde HT</span>
+                                    <span className="text-white font-mono font-bold text-xs text-emerald-400">{r.stats.winsHT}-{r.stats.drawsHT}-{r.stats.lossesHT}</span>
+                                </div>
+                                <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
+                                    <span className="text-[9px] text-textMuted uppercase font-bold">Recorde FT</span>
+                                    <span className="text-white font-mono font-bold text-xs text-accent">{r.stats.winsFT}-{r.stats.drawsFT}-{r.stats.lossesFT}</span>
+                                </div>
+                            </div>
+
+                            <div className="p-4 bg-surfaceHighlight/20">
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-[10px] text-textMuted uppercase font-bold">Últimos 5 Jogos</span>
+                                <span className="text-[10px] text-textMuted">(Mais recente à direita)</span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                                {[...r.last5].reverse().map((m, i) => (
+                                <MatchMiniature key={i} player={r.player} match={m} />
+                                ))}
+                            </div>
+                            </div>
+                        </Card>
+                        );
+                    })}
+                    </div>
                 </div>
-              </Card>
-            );
-          })}
-        </div>
+            )}
+        </>
       )}
     </div>
   );
