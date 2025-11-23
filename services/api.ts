@@ -82,12 +82,6 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20): Pr
             return matches;
         }
         return [];
-    } catch (error) {
-        console.error(`Error fetching specific history for player ${player}:`, error);
-        return [];
-    }
-};
-
 export const fetchH2H = async (player1: string, player2: string, league: string): Promise<H2HResponse | null> => {
   const tryFetch = async (url: string) => {
       const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
@@ -102,58 +96,6 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
       
       try {
           const data = await tryFetch(url);
-          if (data) {
-              const matches = (data.gameMutualInformation?.lastGames || []).map((g: any) => ({
-                  home_player: g.home.includes('(') ? g.home.split('(')[1].replace(')', '') : g.home,
-                  away_player: g.away.includes('(') ? g.away.split('(')[1].replace(')', '') : g.away,
-                  league_name: league,
-                  score_home: Number((g.score || "0-0").split('-')[0]),
-                  score_away: Number((g.score || "0-0").split('-')[1]),
-                  halftime_score_home: Number((g.scoreHT || "0-0").split('-')[0]),
-                  halftime_score_away: Number((g.scoreHT || "0-0").split('-')[1]),
-                  data_realizacao: g.date ? new Date(g.timestamp * 1000).toISOString() : new Date().toISOString()
-              }));
-
-              const total = matches.length;
-              const p1WinsCount = matches.filter((m: any) => m.score_home > m.score_away && m.home_player.includes(player1) || m.score_away > m.score_home && m.away_player.includes(player1)).length;
-              const p2WinsCount = matches.filter((m: any) => m.score_home > m.score_away && m.home_player.includes(player2) || m.score_away > m.score_home && m.away_player.includes(player2)).length;
-              const drawsCount = matches.filter((m: any) => m.score_home === m.score_away).length;
-
-              return {
-                  total_matches: total,
-                  player1_wins: p1WinsCount,
-                  player2_wins: p2WinsCount,
-                  draws: drawsCount,
-                  player1_win_percentage: total > 0 ? (p1WinsCount / total) * 100 : 0,
-                  player2_win_percentage: total > 0 ? (p2WinsCount / total) * 100 : 0,
-                  draw_percentage: total > 0 ? (drawsCount / total) * 100 : 0,
-                  matches: matches,
-                  player1_stats: data.players?.playerA,
-                  player2_stats: data.players?.playerB
-              };
-          }
-      } catch (e) {
-          console.error("Adriatic H2H Error:", e);
-          return null;
-      }
-  } else {
-      // Standard Leagues: Use rwtips API with NORMALIZED names
-      const p1Formatted = formatPlayerName(player1);
-      const p2Formatted = formatPlayerName(player2);
-      const url = `${H2H_API_URL}/${encodeURIComponent(p1Formatted)}/${encodeURIComponent(p2Formatted)}?page=1&limit=20`;
-      
-      try {
-          const data = await tryFetch(url);
-          // ... (rest of the logic is fine, it will use the data returned)
-          // Wait, I need to make sure I don't cut off the rest of the function.
-          // The view_file showed up to line 100. I need to be careful replacing.
-          // I will use the `normalizeHistoryMatch` logic which is likely inside the `else` block or after.
-          // Actually, I should check the original code again to see where the `else` block ends.
-          // Since I can't see past line 100 in the previous view, I should probably view it first.
-          // BUT, I can infer the structure.
-          // To be safe, I will just replace the `fetchPlayerHistory` and the START of `fetchH2H` up to the `else` block, and then I'll have to be careful.
-          // Actually, the `replace_file_content` tool works on line ranges.
-          // I will view the file again to be sure.
           return null; // Abort to view file
       } catch (e) { return null; }
   }
