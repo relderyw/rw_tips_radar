@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { fetchHistoryGames, fetchPlayerHistory } from '../services/api';
 import { HistoryMatch } from '../types';
-import { TrendingUp, AlertTriangle, CheckCircle2, XCircle, Flame, ShieldAlert, Target, Clock, Activity, Shield, Star, Crown, Zap, RefreshCw, Sunrise, Sunset } from 'lucide-react';
+import { TrendingUp, AlertTriangle, CheckCircle2, XCircle, Flame, ShieldAlert, Target, Clock, Activity, Shield, Star, Crown, Zap, RefreshCw, Sunrise, Sunset, Info, X } from 'lucide-react';
 
 // --- Types ---
 
@@ -421,12 +421,138 @@ const ConfidenceMeter: React.FC<{ confidence: number }> = ({ confidence }) => {
     );
 };
 
+const MetricsGuideModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl relative">
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 text-textMuted hover:text-white transition-colors"
+        >
+          <X size={24} />
+        </button>
+        
+        <div className="p-8">
+          <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+            <Info className="text-accent" />
+            Guia de Métricas e Tendências
+          </h2>
+          <p className="text-textMuted mb-8">Entenda como nossos algoritmos analisam os jogos.</p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            {/* Estatísticas Base */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-bold text-white border-b border-white/10 pb-2">Estatísticas Avançadas</h3>
+              
+              <div className="space-y-4">
+                <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="text-emerald-400" size={18} />
+                    <span className="font-bold text-white">Dominância</span>
+                  </div>
+                  <p className="text-sm text-textMuted leading-relaxed">
+                    Média do saldo de gols nos últimos 5 jogos. Valores positivos indicam que o time costuma vencer com margem (ataque forte/defesa sólida). Valores negativos indicam fragilidade.
+                  </p>
+                </div>
+
+                <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Activity className="text-orange-400" size={18} />
+                    <span className="font-bold text-white">Volatilidade</span>
+                  </div>
+                  <p className="text-sm text-textMuted leading-relaxed">
+                    Mede a instabilidade dos placares (Desvio Padrão). 
+                    <br/>
+                    <span className="text-emerald-400 font-bold">Baixa (&lt; 1.5):</span> Jogos consistentes, placares previsíveis.
+                    <br/>
+                    <span className="text-orange-400 font-bold">Alta (&gt; 1.5):</span> Jogos loucos, goleadas ou zebras frequentes.
+                  </p>
+                </div>
+
+                <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Star className="text-yellow-400" size={18} />
+                    <span className="font-bold text-white">Confiança (Estrelas)</span>
+                  </div>
+                  <p className="text-sm text-textMuted leading-relaxed">
+                    Calculada com base na consistência do padrão (5/5 jogos = 95%+) e no peso do padrão (Padrões raros valem mais).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Padrões de Tendência */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-bold text-white border-b border-white/10 pb-2">Padrões Identificados</h3>
+              
+              <div className="grid grid-cols-1 gap-3">
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-white/5">
+                  <Flame className="text-emerald-400 shrink-0 mt-1" size={16} />
+                  <div>
+                    <span className="font-bold text-white text-sm block">Sequência Ativa</span>
+                    <p className="text-xs text-textMuted">Jogador vem de uma sequência de 4 jogos com gols no HT e acabou de quebrar (0 HT). Tendência forte de voltar a marcar HT.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-white/5">
+                  <Zap className="text-fuchsia-400 shrink-0 mt-1" size={16} />
+                  <div>
+                    <span className="font-bold text-white text-sm block">Implacável (Merciless)</span>
+                    <p className="text-xs text-textMuted">Venceu 2 ou mais jogos por 3+ gols de diferença. Time que não tira o pé.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-white/5">
+                  <RefreshCw className="text-cyan-400 shrink-0 mt-1" size={16} />
+                  <div>
+                    <span className="font-bold text-white text-sm block">Rei da Virada (Comeback King)</span>
+                    <p className="text-xs text-textMuted">Costuma sair perdendo ou empatando no HT e vira o jogo no FT.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-white/5">
+                  <TrendingUp className="text-blue-400 shrink-0 mt-1" size={16} />
+                  <div>
+                    <span className="font-bold text-white text-sm block">Máquina de Gols</span>
+                    <p className="text-xs text-textMuted">5/5 jogos com Over 2.5 Gols ou média de gols extremamente alta.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-white/5">
+                  <ShieldAlert className="text-orange-400 shrink-0 mt-1" size={16} />
+                  <div>
+                    <span className="font-bold text-white text-sm block">Perigo 2º Tempo</span>
+                    <p className="text-xs text-textMuted">Vence o 1º tempo mas cede o empate ou virada no final.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-white/5">
+                  <Clock className="text-indigo-400 shrink-0 mt-1" size={16} />
+                  <div>
+                    <span className="font-bold text-white text-sm block">Diesel / Late Bloomer</span>
+                    <p className="text-xs text-textMuted">Marca a grande maioria dos gols apenas no 2º tempo.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const Tendencias: React.FC = () => {
   const [league, setLeague] = useState<string>('A');
   const [availableLeagues, setAvailableLeagues] = useState<string[]>([]);
   const [playersByLeague, setPlayersByLeague] = useState<Record<string, Set<string>>>({});
   const [results, setResults] = useState<PlayerTrend[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [showMetricsGuide, setShowMetricsGuide] = useState(false);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -500,6 +626,13 @@ export const Tendencias: React.FC = () => {
            <p className="text-textMuted mt-1">
              Algoritmo de detecção de padrões de alta assertividade.
            </p>
+           <button 
+             onClick={() => setShowMetricsGuide(true)}
+             className="mt-3 text-xs flex items-center gap-1 text-accent hover:text-white transition-colors font-medium"
+           >
+             <Info size={14} />
+             Entenda as métricas
+           </button>
         </div>
         
         <div className="flex items-center gap-3 bg-surface/50 p-1 rounded-xl border border-white/5">
@@ -683,6 +816,7 @@ export const Tendencias: React.FC = () => {
             )}
         </>
       )}
+      <MetricsGuideModal isOpen={showMetricsGuide} onClose={() => setShowMetricsGuide(false)} />
     </div>
   );
 };
