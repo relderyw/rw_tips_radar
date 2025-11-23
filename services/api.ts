@@ -45,45 +45,9 @@ const normalizeHistoryMatch = (match: any): HistoryMatch => {
     };
 };
 
-export const fetchGames = async (): Promise<Game[]> => {
-  const MAX_PAGES = 10;
-  const CONCURRENCY_LIMIT = 5; 
-  let allGames: any[] = [];
-
-  const fetchPage = async (page: number) => {
-      try {
-          // New API params
-          const url = `${HISTORY_API_URL}?page=${page}&limit=50&sport=esoccer&status=ended`;
-          const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-          
-          if (!response.ok) return [];
-          
-          const data = await response.json();
-          
-          // New API returns items in data.items
-          if (data.items && Array.isArray(data.items)) return data.items;
-          
-          // Old fallbacks
-          if (data.partidas && Array.isArray(data.partidas)) return data.partidas;
-          if (data.matches && Array.isArray(data.matches)) return data.matches;
-          if (Array.isArray(data)) return data;
-          
-          return [];
-      } catch (e) {
-          console.warn(`Error fetching history page ${page}:`, e);
-          return [];
-      }
-  };
-
-  const pages = Array.from({ length: MAX_PAGES }, (_, i) => i + 1);
-  
-  for (let i = 0; i < pages.length; i += CONCURRENCY_LIMIT) {
-      const batch = pages.slice(i, i + CONCURRENCY_LIMIT);
-      const results = await Promise.all(batch.map(p => fetchPage(p)));
-      results.forEach(r => allGames.push(...r));
-  }
-
-  return allGames;
+export const fetchGames = async (): Promise<HistoryMatch[]> => {
+  // Reusing the optimized fetchHistoryGames logic (2 pages of 100 games)
+  return await fetchHistoryGames();
 };
 
 export const fetchH2H = async (player1: string, player2: string, league: string): Promise<H2HResponse | null> => {
