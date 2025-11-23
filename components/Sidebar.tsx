@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Swords, Radio, ArrowRight } from 'lucide-react';
+import { LayoutDashboard, Users, Swords, Radio, ArrowRight, GitGraphIcon, Grab, GitGraph, InfoIcon, AntennaIcon, Database, Highlighter, TrendingUp } from 'lucide-react';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -16,7 +16,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { path: '/live', label: 'Ao Vivo', icon: <Radio size={20} className={location.pathname === '/live' ? 'animate-pulse' : ''} /> },
     { path: '/players', label: 'Métricas de Players', icon: <Users size={20} /> },
     { path: '/h2h', label: 'Head to Head', icon: <Swords size={20} /> },
-    { path: '/tendencias', label: 'Tendencias', icon: <ArrowRight size={20} /> },
+    { path: '/tendencias', label: 'Tendencias', icon: <TrendingUp size={20} /> },
   ];
 
   return (
