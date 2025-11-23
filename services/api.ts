@@ -12,26 +12,21 @@ const CORS_PROXY = 'https://corsproxy.io/?';
 // Helper for delay
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Helper to clean player name (Remove team name in parenthesis coming from Green365)
-const cleanPlayerName = (name: string): string => {
-    if (!name) return "";
-    // Removes "(Team Name)" and trims whitespace. e.g. "Zoom (Tottenham)" -> "Zoom"
-    return name.split('(')[0].trim();
-};
-
 // Helper for normalizing inconsistent API data
 const normalizeHistoryMatch = (match: any): HistoryMatch => {
     // Check if it's the new Green365 structure
     if (match.sport === 'esoccer' && match.score && match.home?.name) {
         return {
-            home_player: cleanPlayerName(match.home.name),
-            away_player: cleanPlayerName(match.away.name),
+            home_player: match.home.name,
+            away_player: match.away.name,
             league_name: match.competition?.name || "Desconhecida",
             score_home: Number(match.score.home ?? 0),
             score_away: Number(match.score.away ?? 0),
             halftime_score_home: Number(match.scoreHT?.home ?? 0),
             halftime_score_away: Number(match.scoreHT?.away ?? 0),
-            data_realizacao: match.startTime || new Date().toISOString()
+            data_realizacao: match.startTime || new Date().toISOString(),
+            home_id: match.home?.id,
+            away_id: match.away?.id
         };
     }
 
@@ -64,18 +59,15 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
 
   // STRATEGY: Check for Adriatic League
   if (league.includes('Adriatic') || league.includes('10 mins play')) {
-      // Use CLEANED names for Adriatic (Green365 expects names without team, usually Title Case)
-      const p1 = cleanPlayerName(player1);
-      const p2 = cleanPlayerName(player2);
-      
-      const url = `https://api.green365.com.br/api/e-soccer/event/stats?homeID=null&awayID=null&home=${encodeURIComponent(p1)}&away=${encodeURIComponent(p2)}&league=null&eventID=0&period=last_30`;
+      // Use raw names for Adriatic as they come from the same source (Green365)
+      const url = `https://api.green365.com.br/api/e-soccer/event/stats?homeID=null&awayID=null&home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&league=null&eventID=0&period=last_30`;
       
       try {
           const data = await tryFetch(url);
           if (data) {
               const matches = (data.gameMutualInformation?.lastGames || []).map((g: any) => ({
-                  home_player: cleanPlayerName(g.home),
-                  away_player: cleanPlayerName(g.away),
+                  home_player: g.home.includes('(') ? g.home.split('(')[1].replace(')', '') : g.home,
+                  away_player: g.away.includes('(') ? g.away.split('(')[1].replace(')', '') : g.away,
                   league_name: league,
                   score_home: Number((g.score || "0-0").split('-')[0]),
                   score_away: Number((g.score || "0-0").split('-')[1]),
@@ -85,9 +77,8 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
               }));
 
               const total = matches.length;
-              // Relaxed matching for wins to account for minor string differences
-              const p1WinsCount = matches.filter((m: any) => m.score_home > m.score_away && m.home_player.includes(p1) || m.score_away > m.score_home && m.away_player.includes(p1)).length;
-              const p2WinsCount = matches.filter((m: any) => m.score_home > m.score_away && m.home_player.includes(p2) || m.score_away > m.score_home && m.away_player.includes(p2)).length;
+              const p1WinsCount = matches.filter((m: any) => m.score_home > m.score_away && m.home_player.includes(player1) || m.score_away > m.score_home && m.away_player.includes(player1)).length;
+              const p2WinsCount = matches.filter((m: any) => m.score_home > m.score_away && m.home_player.includes(player2) || m.score_away > m.score_home && m.away_player.includes(player2)).length;
               const drawsCount = matches.filter((m: any) => m.score_home === m.score_away).length;
 
               return {
@@ -108,12 +99,9 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
           return null;
       }
   } else {
-      // Standard Leagues: RWTips API requires Title Case (e.g. "Eminem", not "EMINEM")
-      // We must normalize the input because the dropdown might contain Uppercase names from the history API
-      const p1 = formatPlayerName(cleanPlayerName(player1));
-      const p2 = formatPlayerName(cleanPlayerName(player2));
-      
-      const url = `${H2H_API_URL}/${encodeURIComponent(p1)}/${encodeURIComponent(p2)}?page=1&limit=20`;
+      // Standard Leagues: Use rwtips API with RAW names (API expects Uppercase usually)
+      // Removed formatPlayerName to respect the casing coming from the dropdown (which comes from the API)
+      const url = `${H2H_API_URL}/${encodeURIComponent(player1)}/${encodeURIComponent(player2)}?page=1&limit=20`;
       
       try {
           const data = await tryFetch(url);
@@ -160,17 +148,13 @@ const setCache = (key: string, data: HistoryMatch[]) => {
 
 export const fetchPlayerHistory = async (player: string, limit: number = 20): Promise<HistoryMatch[]> => {
     try {
-        // RWTips API (Standard Leagues) expects UPPERCASE. 
-        // We force uppercase here because this endpoint is primarily for standard leagues.
-        // If Adriatic support is needed here later, we might need league context.
-        const searchPlayer = cleanPlayerName(player).toUpperCase();
+        // Use raw name for rwtips API
+        const url = `${PLAYER_HISTORY_API_URL}?jogador=${encodeURIComponent(player)}&limit=${limit}&page=1`;
         
         // Check cache
-        const cacheKey = `history_${searchPlayer}_${limit}`;
+        const cacheKey = `history_${player}_${limit}`;
         const cached = getCache(cacheKey);
         if (cached) return cached;
-        
-        const url = `${PLAYER_HISTORY_API_URL}?jogador=${encodeURIComponent(searchPlayer)}&limit=${limit}&page=1`;
 
         const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
         if (response.ok) {
@@ -192,8 +176,7 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
         // 1. Correct casing/names for Standard Leagues (from RWTips)
         // 2. Adriatic League data (from Green365)
         
-        // Increased pages for RWTips to ensure dropdown population covers more standard players
-        const pages = [1, 2, 3, 4, 5]; 
+        const pages = [1, 2, 3]; // Increased pages to get more players
         
         // 1. Fetch from RWTips (Old API) - Source of Truth for Standard Leagues
         const rwTipsPromises = pages.map(page => 
@@ -209,8 +192,7 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
         );
 
         // 2. Fetch from Green365 (New API) - Source for Adriatic
-        // Fetching fewer pages from here as it's just for Adriatic supplement
-        const green365Promises = [1, 2, 3].map(page => 
+        const green365Promises = pages.map(page => 
             fetch(`${HISTORY_API_URL}?page=${page}&limit=100&sport=esoccer&status=ended`, { 
                 headers: { 'Accept': 'application/json' } 
             }).then(res => res.ok ? res.json() : null)

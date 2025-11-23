@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { fetchHistoryGames } from '../services/api';
+import { fetchGames } from '../services/api';
 import { processRawGames } from '../utils/stats';
 import { ProcessedGame } from '../types';
 
@@ -21,7 +21,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setLoading(true);
     try {
       // This now calls the updated fetchGames which gets 10 pages from history API
-      const rawGames = await fetchHistoryGames();
+      const rawGames = await fetchGames();
       const processed = processRawGames(rawGames);
       setGames(processed);
       
