@@ -99,10 +99,9 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
           return null;
       }
   } else {
-      // Standard Leagues: Use rwtips API with NORMALIZED names
-      const p1Formatted = formatPlayerName(player1);
-      const p2Formatted = formatPlayerName(player2);
-      const url = `${H2H_API_URL}/${encodeURIComponent(p1Formatted)}/${encodeURIComponent(p2Formatted)}?page=1&limit=20`;
+      // Standard Leagues: Use rwtips API with RAW names (API expects Uppercase usually)
+      // Removed formatPlayerName to respect the casing coming from the dropdown (which comes from the API)
+      const url = `${H2H_API_URL}/${encodeURIComponent(player1)}/${encodeURIComponent(player2)}?page=1&limit=20`;
       
       try {
           const data = await tryFetch(url);
@@ -149,12 +148,11 @@ const setCache = (key: string, data: HistoryMatch[]) => {
 
 export const fetchPlayerHistory = async (player: string, limit: number = 20): Promise<HistoryMatch[]> => {
     try {
-        // Normalize name for rwtips API
-        const formattedPlayer = formatPlayerName(player);
-        const url = `${PLAYER_HISTORY_API_URL}?jogador=${encodeURIComponent(formattedPlayer)}&limit=${limit}&page=1`;
+        // Use raw name for rwtips API
+        const url = `${PLAYER_HISTORY_API_URL}?jogador=${encodeURIComponent(player)}&limit=${limit}&page=1`;
         
         // Check cache
-        const cacheKey = `history_${formattedPlayer}_${limit}`;
+        const cacheKey = `history_${player}_${limit}`;
         const cached = getCache(cacheKey);
         if (cached) return cached;
 
@@ -178,11 +176,11 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
         // 1. Correct casing/names for Standard Leagues (from RWTips)
         // 2. Adriatic League data (from Green365)
         
-        const pages = [1, 2];
+        const pages = [1, 2, 3]; // Increased pages to get more players
         
-        // 1. Fetch from RWTips (Old API)
+        // 1. Fetch from RWTips (Old API) - Source of Truth for Standard Leagues
         const rwTipsPromises = pages.map(page => 
-            fetch(`${CORS_PROXY}${RWTIPS_HISTORY_URL}?page=${page}&limit=100&sport=esoccer&status=ended`, { 
+            fetch(`${CORS_PROXY}${RWTIPS_HISTORY_URL}?page=${page}&limit=100`, { 
                 headers: { 'Accept': 'application/json' } 
             }).then(res => {
                 if (!res.ok) console.error(`RWTips Fetch Error Page ${page}:`, res.status);
@@ -193,7 +191,7 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
             })
         );
 
-        // 2. Fetch from Green365 (New API)
+        // 2. Fetch from Green365 (New API) - Source for Adriatic
         const green365Promises = pages.map(page => 
             fetch(`${HISTORY_API_URL}?page=${page}&limit=100&sport=esoccer&status=ended`, { 
                 headers: { 'Accept': 'application/json' } 
