@@ -82,6 +82,11 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20): Pr
             return matches;
         }
         return [];
+    } catch (error) {
+        console.error(`Error fetching specific history for player ${player}:`, error);
+        return [];
+    }
+};
 export const fetchH2H = async (player1: string, player2: string, league: string): Promise<H2HResponse | null> => {
   const tryFetch = async (url: string) => {
       const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
