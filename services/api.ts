@@ -98,7 +98,9 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
                   player1_win_percentage: total > 0 ? (p1WinsCount / total) * 100 : 0,
                   player2_win_percentage: total > 0 ? (p2WinsCount / total) * 100 : 0,
                   draw_percentage: total > 0 ? (drawsCount / total) * 100 : 0,
-                  matches: matches
+                  matches: matches,
+                  player1_stats: data.players?.playerA,
+                  player2_stats: data.players?.playerB
               };
           }
       } catch (e) {
@@ -106,9 +108,10 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
           return null;
       }
   } else {
-      // Standard Leagues: RWTips API requires UPPERCASE names
-      const p1 = cleanPlayerName(player1).toUpperCase();
-      const p2 = cleanPlayerName(player2).toUpperCase();
+      // Standard Leagues: RWTips API requires Title Case (e.g. "Eminem", not "EMINEM")
+      // We must normalize the input because the dropdown might contain Uppercase names from the history API
+      const p1 = formatPlayerName(cleanPlayerName(player1));
+      const p2 = formatPlayerName(cleanPlayerName(player2));
       
       const url = `${H2H_API_URL}/${encodeURIComponent(p1)}/${encodeURIComponent(p2)}?page=1&limit=20`;
       
