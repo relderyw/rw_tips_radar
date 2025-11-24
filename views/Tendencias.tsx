@@ -765,26 +765,102 @@ const BacktestModal: React.FC<{
 
             setMatchCount(matches.length);
 
-            const markets = [
-                { id: 'ft_over25', label: 'Over 2.5 FT', check: (m: any) => (m.score_home + m.score_away) > 2.5 },
-                { id: 'ft_btts', label: 'Ambos Marcam', check: (m: any) => m.score_home > 0 && m.score_away > 0 },
-                { id: 'ht_over05', label: 'Over 0.5 HT', check: (m: any) => (m.halftime_score_home + m.halftime_score_away) > 0.5 },
-                { id: 'ft_over15', label: 'Over 1.5 FT', check: (m: any) => (m.score_home + m.score_away) > 1.5 },
-                { id: 'win', label: 'Vitória (Player A)', check: (m: any) => {
-                    // For Individual: Player A win. For H2H: Player A win.
-                    // Need to identify which side Player A is on.
-                    // In H2H matches, we know P1 and P2.
-                    // In Individual matches, we need to check home/away.
+            setMatchCount(matches.length);
+
+            let markets: any[] = [];
+
+            if (mode === 'INDIVIDUAL') {
+                // INDIVIDUAL MODE: Metrics based on PLAYER GOALS only
+                markets = [
+                    { 
+                        id: 'ind_ht_over05', 
+                        label: 'HT Over 0.5 (Player)', 
+                        check: (m: any) => {
+                            const isHome = m.home_player === playerA || (m.home_player && m.home_player.includes(playerA));
+                            const goals = isHome ? m.halftime_score_home : m.halftime_score_away;
+                            return goals > 0.5;
+                        } 
+                    },
+                    { 
+                        id: 'ind_ht_over15', 
+                        label: 'HT Over 1.5 (Player)', 
+                        check: (m: any) => {
+                            const isHome = m.home_player === playerA || (m.home_player && m.home_player.includes(playerA));
+                            const goals = isHome ? m.halftime_score_home : m.halftime_score_away;
+                            return goals > 1.5;
+                        } 
+                    },
+                    { 
+                        id: 'ind_ft_over05', 
+                        label: 'FT Over 0.5 (Player)', 
+                        check: (m: any) => {
+                            const isHome = m.home_player === playerA || (m.home_player && m.home_player.includes(playerA));
+                            const goals = isHome ? m.score_home : m.score_away;
+                            return goals > 0.5;
+                        } 
+                    },
+                    { 
+                        id: 'ind_ft_over15', 
+                        label: 'FT Over 1.5 (Player)', 
+                        check: (m: any) => {
+                            const isHome = m.home_player === playerA || (m.home_player && m.home_player.includes(playerA));
+                            const goals = isHome ? m.score_home : m.score_away;
+                            return goals > 1.5;
+                        } 
+                    },
+                    { 
+                        id: 'ind_ft_over25', 
+                        label: 'FT Over 2.5 (Player)', 
+                        check: (m: any) => {
+                            const isHome = m.home_player === playerA || (m.home_player && m.home_player.includes(playerA));
+                            const goals = isHome ? m.score_home : m.score_away;
+                            return goals > 2.5;
+                        } 
+                    },
+                    { 
+                        id: 'ind_win', 
+                        label: 'Vitória (Player)', 
+                        check: (m: any) => {
+                            const isHome = m.home_player === playerA || (m.home_player && m.home_player.includes(playerA));
+                            if (isHome) return m.score_home > m.score_away;
+                            return m.score_away > m.score_home;
+                        } 
+                    }
+                ];
+            } else {
+                // H2H MODE: Metrics based on TOTAL GOALS (Sum) + Win Rates
+                markets = [
+                    { id: 'h2h_ht_over05', label: 'HT Over 0.5 (Total)', check: (m: any) => (m.halftime_score_home + m.halftime_score_away) > 0.5 },
+                    { id: 'h2h_ht_over15', label: 'HT Over 1.5 (Total)', check: (m: any) => (m.halftime_score_home + m.halftime_score_away) > 1.5 },
+                    { id: 'h2h_ht_btts', label: 'HT BTTS', check: (m: any) => m.halftime_score_home > 0 && m.halftime_score_away > 0 },
                     
-                    // Normalize check:
-                    const pA = playerA.toLowerCase();
-                    const home = m.home_player.toLowerCase();
-                    const isHome = home.includes(pA) || pA.includes(home); // Loose match
-                    
-                    if (isHome) return m.score_home > m.score_away;
-                    return m.score_away > m.score_home;
-                }}
-            ];
+                    { id: 'h2h_ft_over15', label: 'FT Over 1.5 (Total)', check: (m: any) => (m.score_home + m.score_away) > 1.5 },
+                    { id: 'h2h_ft_over25', label: 'FT Over 2.5 (Total)', check: (m: any) => (m.score_home + m.score_away) > 2.5 },
+                    { id: 'h2h_ft_over35', label: 'FT Over 3.5 (Total)', check: (m: any) => (m.score_home + m.score_away) > 3.5 },
+                    { id: 'h2h_ft_btts', label: 'FT BTTS', check: (m: any) => m.score_home > 0 && m.score_away > 0 },
+
+                    { 
+                        id: 'h2h_win_p1', 
+                        label: `Vitória ${playerA}`, 
+                        check: (m: any) => {
+                            // Identify P1 side
+                            const isHome = m.home_player === playerA || (m.home_player && m.home_player.includes(playerA));
+                            if (isHome) return m.score_home > m.score_away;
+                            return m.score_away > m.score_home;
+                        } 
+                    },
+                    { 
+                        id: 'h2h_win_p2', 
+                        label: `Vitória ${playerB}`, 
+                        check: (m: any) => {
+                            // Identify P2 side
+                            const isHome = m.home_player === playerB || (m.home_player && m.home_player.includes(playerB));
+                            if (isHome) return m.score_home > m.score_away;
+                            return m.score_away > m.score_home;
+                        } 
+                    }
+                ];
+            }
 
             const calculated = markets.map(market => {
                 let wins = 0;
