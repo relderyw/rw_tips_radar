@@ -1,6 +1,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/ui/Card';
+import { Badge } from '../components/ui/Badge';
 import { fetchHistoryGames, fetchPlayerHistory } from '../services/api';
 import { HistoryMatch } from '../types';
 import { TrendingUp, AlertTriangle, CheckCircle2, XCircle, Flame, ShieldAlert, Target, Clock, Activity, Shield, Star, Crown, Zap, RefreshCw, Sunrise, Sunset, Info, X } from 'lucide-react';
@@ -42,6 +43,7 @@ interface PlayerTrend {
   player: string;
   league: string;
   last5: HistoryMatch[];
+  recentMatches: HistoryMatch[]; // Store all fetched matches for simulator
   stats: PlayerStats;
   trends: {
     type: TrendType;
@@ -335,6 +337,7 @@ const analyzeTrends = (player: string, league: string, matches: HistoryMatch[]):
     player,
     league,
     last5,
+    recentMatches: matches, // Save all matches
     stats,
     trends: detectedTrends
   };
@@ -421,6 +424,16 @@ const ConfidenceMeter: React.FC<{ confidence: number }> = ({ confidence }) => {
     );
 };
 
+const RecordDisplay: React.FC<{ wins: number; draws: number; losses: number }> = ({ wins, draws, losses }) => (
+  <div className="flex items-center justify-center gap-0.5 font-mono font-bold text-xs">
+    <span className="text-emerald-400">{wins}</span>
+    <span className="text-white/40 mx-0.5">-</span>
+    <span className="text-yellow-400">{draws}</span>
+    <span className="text-white/40 mx-0.5">-</span>
+    <span className="text-red-400">{losses}</span>
+  </div>
+);
+
 const MetricsGuideModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
@@ -462,11 +475,19 @@ const MetricsGuideModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                   <div className="grid grid-cols-2 gap-4">
                       <div>
                           <span className="text-[10px] text-textMuted uppercase font-bold block">Recorde HT</span>
-                          <p className="text-xs text-white">Vitórias - Empates - Derrotas (1º Tempo).</p>
+                          <p className="text-xs text-white">
+                            <span className="text-emerald-400 font-bold">V</span> - 
+                            <span className="text-yellow-400 font-bold"> E</span> - 
+                            <span className="text-red-400 font-bold"> D</span> (1º Tempo)
+                          </p>
                       </div>
                       <div>
                           <span className="text-[10px] text-textMuted uppercase font-bold block">Recorde FT</span>
-                          <p className="text-xs text-white">Vitórias - Empates - Derrotas (Jogo Todo).</p>
+                          <p className="text-xs text-white">
+                            <span className="text-emerald-400 font-bold">V</span> - 
+                            <span className="text-yellow-400 font-bold"> E</span> - 
+                            <span className="text-red-400 font-bold"> D</span> (Final)
+                          </p>
                       </div>
                   </div>
                 </div>
@@ -740,7 +761,7 @@ export const Tendencias: React.FC = () => {
       const batchResults = await Promise.all(batch.map(async (p: string) => {
         try {
             const pid = playerIds[p]; // Get ID if available
-            const matches = await fetchPlayerHistory(p, 6, pid);
+            const matches = await fetchPlayerHistory(p, 20, pid); // Fetch 20 games for simulator
             return analyzeTrends(p, league === 'TODAS' ? 'Global' : league, matches);
         } catch (e) {
             console.error(`Error analyzing player ${p}:`, e);
@@ -819,6 +840,10 @@ export const Tendencias: React.FC = () => {
         </div>
       </div>
 
+      <ConceptGuide />
+
+      {results.length > 0 && <BettingSimulator data={results} />}
+
       {/* Content */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 gap-6">
@@ -888,11 +913,11 @@ export const Tendencias: React.FC = () => {
                                     </div>
                                     <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
                                         <span className="text-[9px] text-textMuted uppercase font-bold">Recorde HT</span>
-                                        <span className="text-white font-mono font-bold text-xs">{r.stats.winsHT}-{r.stats.drawsHT}-{r.stats.lossesHT}</span>
+                                        <RecordDisplay wins={r.stats.winsHT} draws={r.stats.drawsHT} losses={r.stats.lossesHT} />
                                     </div>
                                     <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
                                         <span className="text-[9px] text-textMuted uppercase font-bold">Recorde FT</span>
-                                        <span className="text-white font-mono font-bold text-xs">{r.stats.winsFT}-{r.stats.drawsFT}-{r.stats.lossesFT}</span>
+                                        <RecordDisplay wins={r.stats.winsFT} draws={r.stats.drawsFT} losses={r.stats.lossesFT} />
                                     </div>
                                 </div>
                                 <div className="p-4 bg-surfaceHighlight/20">
@@ -959,11 +984,11 @@ export const Tendencias: React.FC = () => {
                                 </div>
                                 <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
                                     <span className="text-[9px] text-textMuted uppercase font-bold">Recorde HT</span>
-                                    <span className="text-white font-mono font-bold text-xs">{r.stats.winsHT}-{r.stats.drawsHT}-{r.stats.lossesHT}</span>
+                                    <RecordDisplay wins={r.stats.winsHT} draws={r.stats.drawsHT} losses={r.stats.lossesHT} />
                                 </div>
                                 <div className="bg-surface p-2 flex flex-col items-center justify-center text-center">
                                     <span className="text-[9px] text-textMuted uppercase font-bold">Recorde FT</span>
-                                    <span className="text-white font-mono font-bold text-xs">{r.stats.winsFT}-{r.stats.drawsFT}-{r.stats.lossesFT}</span>
+                                    <RecordDisplay wins={r.stats.winsFT} draws={r.stats.drawsFT} losses={r.stats.lossesFT} />
                                 </div>
                             </div>
 
