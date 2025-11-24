@@ -492,28 +492,32 @@ const MetricsGuideModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({
                   </div>
                 </div>
 
-                <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Activity className="text-emerald-400" size={18} />
-                    <span className="font-bold text-white">Dominância</span>
+                <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5 flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 mt-1">
+                      <Activity size={20} />
                   </div>
-                  <p className="text-sm text-textMuted leading-relaxed">
-                    Média do saldo de gols nos últimos 5 jogos. Valores positivos indicam que o time costuma vencer com margem (ataque forte/defesa sólida). Valores negativos indicam fragilidade.
-                  </p>
+                  <div>
+                      <h4 className="text-white font-bold text-sm mb-1">Dominância (Saldo de Gols)</h4>
+                      <p className="text-xs text-textMuted leading-relaxed">
+                          Indica a força do jogador. <br/>
+                          <span className="text-emerald-400 font-bold">Positiva (+):</span> Marca mais que sofre (Ataque forte/Defesa sólida). <br/>
+                          <span className="text-red-400 font-bold">Negativa (-):</span> Sofre mais que marca (Defesa frágil).
+                      </p>
+                  </div>
                 </div>
 
-                <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Activity className="text-orange-400" size={18} />
-                    <span className="font-bold text-white">Volatilidade</span>
+                <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5 flex items-start gap-3">
+                  <div className="p-2 rounded-lg bg-orange-500/10 text-orange-400 mt-1">
+                      <Activity size={20} />
                   </div>
-                  <p className="text-sm text-textMuted leading-relaxed">
-                    Mede a instabilidade dos placares (Desvio Padrão). 
-                    <br/>
-                    <span className="text-emerald-400 font-bold">Baixa (&lt; 1.5):</span> Jogos consistentes, placares previsíveis.
-                    <br/>
-                    <span className="text-orange-400 font-bold">Alta (&gt; 1.5):</span> Jogos loucos, goleadas ou zebras frequentes.
-                  </p>
+                  <div>
+                      <h4 className="text-white font-bold text-sm mb-1">Volatilidade (Instabilidade)</h4>
+                      <p className="text-xs text-textMuted leading-relaxed">
+                          Mede a loucura dos jogos. <br/>
+                          <span className="text-emerald-400 font-bold">Baixa (&lt; 1.5):</span> Jogos consistentes, placares "normais". <br/>
+                          <span className="text-orange-400 font-bold">Alta (&gt; 1.5):</span> Jogos imprevisíveis, goleadas, zebras.
+                      </p>
+                  </div>
                 </div>
 
                 <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5">
@@ -882,7 +886,7 @@ const BacktestModal: React.FC<{
                 const winRate = totalBets > 0 ? (wins / totalBets) * 100 : 0;
 
                 return { ...market, wins, losses, totalBets, profit, roi, units, winRate };
-            }).sort((a, b) => b.profit - a.profit);
+            });
 
             setResults(calculated);
 
@@ -942,7 +946,7 @@ const BacktestModal: React.FC<{
                                     onChange={(e) => setLeague(e.target.value)}
                                     className="w-full bg-surfaceHighlight/10 text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent"
                                 >
-                                    {leagues.map(l => <option key={l} value={l}>{l}</option>)}
+                                    {leagues.map(l => <option key={l} value={l} className="bg-black text-white">{l}</option>)}
                                 </select>
                             </div>
 
@@ -954,8 +958,8 @@ const BacktestModal: React.FC<{
                                         onChange={(e) => setPlayerA(e.target.value)}
                                         className="w-full bg-surfaceHighlight/10 text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent"
                                     >
-                                        <option value="">Selecione...</option>
-                                        {availablePlayers.map(p => <option key={p} value={p}>{p}</option>)}
+                                        <option value="" className="bg-black text-white">Selecione...</option>
+                                        {availablePlayers.map(p => <option key={p} value={p} className="bg-black text-white">{p}</option>)}
                                     </select>
                                 </div>
                                 {mode === 'H2H' && (
@@ -966,8 +970,8 @@ const BacktestModal: React.FC<{
                                             onChange={(e) => setPlayerB(e.target.value)}
                                             className="w-full bg-surfaceHighlight/10 text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent"
                                         >
-                                            <option value="">Selecione...</option>
-                                            {availablePlayers.filter(p => p !== playerA).map(p => <option key={p} value={p}>{p}</option>)}
+                                            <option value="" className="bg-black text-white">Selecione...</option>
+                                            {availablePlayers.filter(p => p !== playerA).map(p => <option key={p} value={p} className="bg-black text-white">{p}</option>)}
                                         </select>
                                     </div>
                                 )}
@@ -1002,10 +1006,10 @@ const BacktestModal: React.FC<{
                                         onChange={(e) => setGamesCount(Number(e.target.value))}
                                         className="w-full bg-surfaceHighlight/10 text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent"
                                     >
-                                        <option value={5}>5</option>
-                                        <option value={10}>10</option>
-                                        <option value={20}>20</option>
-                                        <option value={50}>50</option>
+                                        <option value={5} className="bg-black text-white">5</option>
+                                        <option value={10} className="bg-black text-white">10</option>
+                                        <option value={20} className="bg-black text-white">20</option>
+                                        <option value={50} className="bg-black text-white">50</option>
                                     </select>
                                 </div>
                             </div>
@@ -1263,7 +1267,7 @@ export const Tendencias: React.FC = () => {
         </div>
       </div>
 
-      <ConceptGuide />
+
 
       {/* Content */}
       {loading ? (
