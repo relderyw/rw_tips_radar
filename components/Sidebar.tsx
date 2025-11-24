@@ -1,3 +1,12 @@
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Users, Swords, Radio, ArrowRight, TrendingUp } from 'lucide-react';
+
+interface SidebarProps {
+    isOpen: boolean;
+    setIsOpen: (val: boolean) => void;
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const location = useLocation();
   
