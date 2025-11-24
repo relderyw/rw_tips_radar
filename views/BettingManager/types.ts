@@ -24,19 +24,24 @@ export interface MatchResponse {
   };
 }
 
-export type BetResult = 'Win' | 'Loss' | 'Pending' | 'Void';
+export interface Market {
+  id: string;
+  name: string;
+}
+
+export type BetResult = 'Win' | 'Loss' | 'HalfWin' | 'HalfLoss' | 'Void' | 'Pending';
 
 export interface Bet {
   id: string;
-  matchId: string;
+  matchId?: string; // Optional now as some bets might be manual/custom
   date: string; // ISO string
   league: string;
   homePlayer: string;
   awayPlayer: string;
-  selection: string; // e.g., "Home Win", "Over 2.5"
+  market: string; // Changed from selection to market to match new requirement
   odds: number;
   stake: number;
   result: BetResult;
-  profit: number; // calculated based on result
+  profit: number;
   notes?: string;
 }

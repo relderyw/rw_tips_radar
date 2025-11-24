@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Plus, Save, X } from 'lucide-react';
 import { fetchMatches } from './api';
-import { Match, Bet, BetResult } from './types';
+import { Match, Bet, BetResult, Market } from './types';
 
 interface AddBetFormProps {
   onAddBet: (bet: Bet) => void;
@@ -15,9 +15,10 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
   const [selectedHomePlayer, setSelectedHomePlayer] = useState('');
   const [selectedAwayPlayer, setSelectedAwayPlayer] = useState('');
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [markets, setMarkets] = useState<Market[]>([]);
 
   // Form State
-  const [selection, setSelection] = useState('');
+  const [market, setMarket] = useState('');
   const [odds, setOdds] = useState<string>('');
   const [stake, setStake] = useState<string>('');
   const [result, setResult] = useState<BetResult>('Pending');
@@ -25,6 +26,7 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
 
   useEffect(() => {
     loadMatches();
+    loadMarkets();
   }, []);
 
   const loadMatches = async () => {
@@ -36,6 +38,17 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
       console.error('Failed to load matches', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMarkets = () => {
+    const savedMarkets = localStorage.getItem('rw_betting_manager_markets');
+    if (savedMarkets) {
+      try {
+        setMarkets(JSON.parse(savedMarkets));
+      } catch (e) {
+        console.error('Failed to parse markets', e);
+      }
     }
   };
 
@@ -64,11 +77,11 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
     const numStake = parseFloat(stake);
     
     let profit = 0;
-    if (result === 'Win') {
-      profit = (numStake * numOdds) - numStake;
-    } else if (result === 'Loss') {
-      profit = -numStake;
-    }
+    if (result === 'Win') profit = (numStake * numOdds) - numStake;
+    else if (result === 'Loss') profit = -numStake;
+    else if (result === 'HalfWin') profit = ((numStake / 2) * numOdds) - (numStake / 2);
+    else if (result === 'HalfLoss') profit = -(numStake / 2);
+    else if (result === 'Void') profit = 0;
 
     const newBet: Bet = {
       id: crypto.randomUUID(),
@@ -77,7 +90,7 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
       league: selectedMatch.league_name,
       homePlayer: selectedMatch.home_player,
       awayPlayer: selectedMatch.away_player,
-      selection,
+      market,
       odds: numOdds,
       stake: numStake,
       result,
@@ -87,6 +100,19 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
 
     onAddBet(newBet);
   };
+
+  // Calculate potential profit for preview
+  const calculatePotentialProfit = () => {
+    const numOdds = parseFloat(odds) || 0;
+    const numStake = parseFloat(stake) || 0;
+    if (result === 'Win') return (numStake * numOdds) - numStake;
+    if (result === 'Loss') return -numStake;
+    if (result === 'HalfWin') return ((numStake / 2) * numOdds) - (numStake / 2);
+    if (result === 'HalfLoss') return -(numStake / 2);
+    return 0;
+  };
+
+  const potentialProfit = calculatePotentialProfit();
 
   return (
     <div className="bg-surface p-6 rounded-xl border border-white/5 animate-in fade-in slide-in-from-top-4">
@@ -192,15 +218,21 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-textMuted mb-1">Seleção</label>
-              <input
+              <label className="block text-sm text-textMuted mb-1">Mercado</label>
+              <select
                 required
-                type="text"
-                placeholder="Ex: Casa Vence, Over 2.5"
-                value={selection}
-                onChange={(e) => setSelection(e.target.value)}
+                value={market}
+                onChange={(e) => setMarket(e.target.value)}
                 className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
-              />
+              >
+                <option value="">Selecione um Mercado</option>
+                {markets.map(m => (
+                  <option key={m.id} value={m.name}>{m.name}</option>
+                ))}
+              </select>
+              {markets.length === 0 && (
+                <p className="text-xs text-yellow-500 mt-1">Cadastre mercados na aba "Mercados"</p>
+              )}
             </div>
             <div>
               <label className="block text-sm text-textMuted mb-1">Odds</label>
@@ -236,9 +268,22 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
                 <option value="Pending">Pendente</option>
                 <option value="Win">Green (Vitória)</option>
                 <option value="Loss">Red (Derrota)</option>
-                <option value="Void">Anulada</option>
+                <option value="HalfWin">Meio Green</option>
+                <option value="HalfLoss">Meio Red</option>
+                <option value="Void">Reembolso</option>
               </select>
             </div>
+          </div>
+
+          <div className={`p-4 rounded-lg border border-l-4 flex justify-between items-center ${
+            potentialProfit >= 0 
+              ? 'bg-green-500/5 border-green-500/20 border-l-green-500' 
+              : 'bg-red-500/5 border-red-500/20 border-l-red-500'
+          }`}>
+            <span className="text-sm font-medium text-textMuted">Resultado Final Estimado:</span>
+            <span className={`text-xl font-bold ${potentialProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {potentialProfit >= 0 ? '+' : ''}{potentialProfit.toFixed(2)} R$
+            </span>
           </div>
 
           <div>
