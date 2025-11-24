@@ -74,34 +74,61 @@ const normalizeCaveiraMatch = (match: any): HistoryMatch => {
 
 const fetchCaveiraHistory = async (): Promise<HistoryMatch[]> => {
     try {
-        const response = await fetch(CAVEIRA_API_URL, {
-            method: 'POST',
-            headers: {
-                'Authorization': CAVEIRA_TOKEN,
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
-            },
-            body: JSON.stringify({
-                filters: {
-                    status: "3",
-                    last_7_days: "true",
-                    sort: "-time",
-                    offset: "0"
-                },
-                query: {
-                    sort: "-time",
-                    limit: 500,
-                    offset: "0"
+        const pages = [0, 1, 2, 3, 4]; // 5 pages
+        const limit = 20;
+
+        const promises = pages.map(async (pageIndex) => {
+            const offset = pageIndex * limit;
+            
+            // Construct filters based on user observation (offset only in filters if > 0? or always? 
+            // User showed it in page 2. Safe to include or follow exact pattern. 
+            // Pattern: Page 1 (offset 0) didn't have it in filters. Page 2 (offset 20) did.
+            // Let's include it if offset > 0 to be precise, or maybe just always is fine but let's stick to the observed payload if possible.
+            // Actually, usually APIs are consistent. If I send offset 0 in filters it probably works. 
+            // But I'll stick to the user's exact payload structure to be safe.
+            
+            const filters: any = {
+                status: 3,
+                last_7_days: true,
+                sort: "-time"
+            };
+            
+            if (offset > 0) {
+                filters.offset = offset;
+            }
+
+            try {
+                const response = await fetch(CAVEIRA_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': CAVEIRA_TOKEN,
+                        'Content-Type': 'application/json',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+                    },
+                    body: JSON.stringify({
+                        filters: filters,
+                        query: {
+                            sort: "-time",
+                            limit: limit,
+                            offset: offset
+                        }
+                    })
+                });
+
+                if (!response.ok) return [];
+                const json = await response.json();
+                if (json.success && json.data && Array.isArray(json.data.results)) {
+                    return json.data.results.map(normalizeCaveiraMatch);
                 }
-            })
+                return [];
+            } catch (e) {
+                console.error(`Caveira Page ${pageIndex} Error:`, e);
+                return [];
+            }
         });
 
-        if (!response.ok) return [];
-        const json = await response.json();
-        if (json.success && json.data && Array.isArray(json.data.results)) {
-            return json.data.results.map(normalizeCaveiraMatch);
-        }
-        return [];
+        const results = await Promise.all(promises);
+        return results.flat();
     } catch (error) {
         console.error("Caveira API Error:", error);
         return [];
