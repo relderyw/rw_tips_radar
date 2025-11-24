@@ -41,8 +41,13 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
 
   // Extract unique values for dropdowns
   const leagues = Array.from(new Set(matches.map(m => m.league_name))).sort();
-  const homePlayers = Array.from(new Set(matches.map(m => m.home_player))).sort();
-  const awayPlayers = Array.from(new Set(matches.map(m => m.away_player))).sort();
+
+  const filteredMatchesForPlayers = selectedLeague 
+    ? matches.filter(m => m.league_name === selectedLeague)
+    : matches;
+
+  const homePlayers = Array.from(new Set(filteredMatchesForPlayers.map(m => m.home_player))).sort();
+  const awayPlayers = Array.from(new Set(filteredMatchesForPlayers.map(m => m.away_player))).sort();
 
   const filteredMatches = matches.filter(m => {
     const matchLeague = !selectedLeague || m.league_name === selectedLeague;
