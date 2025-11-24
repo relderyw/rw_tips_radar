@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Plus, Save, X } from 'lucide-react';
+import { Search, Filter, Plus, Save, X, Calendar } from 'lucide-react';
 import { fetchMatches } from './api';
 import { Match, Bet, BetResult, Market } from './types';
 
@@ -11,13 +11,19 @@ interface AddBetFormProps {
 export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedLeague, setSelectedLeague] = useState('');
-  const [selectedHomePlayer, setSelectedHomePlayer] = useState('');
-  const [selectedAwayPlayer, setSelectedAwayPlayer] = useState('');
-  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [selectedLeagueFilter, setSelectedLeagueFilter] = useState('');
+  const [selectedHomePlayerFilter, setSelectedHomePlayerFilter] = useState('');
+  const [selectedAwayPlayerFilter, setSelectedAwayPlayerFilter] = useState('');
   const [markets, setMarkets] = useState<Market[]>([]);
 
   // Form State
+  const [isManual, setIsManual] = useState(false);
+  const [league, setLeague] = useState('');
+  const [homePlayer, setHomePlayer] = useState('');
+  const [awayPlayer, setAwayPlayer] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 16)); // YYYY-MM-DDTHH:mm
+  const [matchId, setMatchId] = useState<string | undefined>(undefined);
+  
   const [market, setMarket] = useState('');
   const [odds, setOdds] = useState<string>('');
   const [stake, setStake] = useState<string>('');
@@ -52,27 +58,35 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
     }
   };
 
-  // Extract unique values for dropdowns
+  const handleSelectMatch = (match: Match) => {
+    setLeague(match.league_name);
+    setHomePlayer(match.home_player);
+    setAwayPlayer(match.away_player);
+    setDate(new Date(match.data_realizacao).toISOString().slice(0, 16));
+    setMatchId(match.id);
+    setIsManual(true); // Switch to form view with pre-filled data
+  };
+
+  // Extract unique values for filters
   const leagues = Array.from(new Set(matches.map(m => m.league_name))).sort();
 
-  const filteredMatchesForPlayers = selectedLeague 
-    ? matches.filter(m => m.league_name === selectedLeague)
+  const filteredMatchesForPlayers = selectedLeagueFilter 
+    ? matches.filter(m => m.league_name === selectedLeagueFilter)
     : matches;
 
   const homePlayers = Array.from(new Set(filteredMatchesForPlayers.map(m => m.home_player))).sort();
   const awayPlayers = Array.from(new Set(filteredMatchesForPlayers.map(m => m.away_player))).sort();
 
   const filteredMatches = matches.filter(m => {
-    const matchLeague = !selectedLeague || m.league_name === selectedLeague;
-    const matchHome = !selectedHomePlayer || m.home_player === selectedHomePlayer;
-    const matchAway = !selectedAwayPlayer || m.away_player === selectedAwayPlayer;
+    const matchLeague = !selectedLeagueFilter || m.league_name === selectedLeagueFilter;
+    const matchHome = !selectedHomePlayerFilter || m.home_player === selectedHomePlayerFilter;
+    const matchAway = !selectedAwayPlayerFilter || m.away_player === selectedAwayPlayerFilter;
     return matchLeague && matchHome && matchAway;
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedMatch) return;
-
+    
     const numOdds = parseFloat(odds);
     const numStake = parseFloat(stake);
     
@@ -85,11 +99,11 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
 
     const newBet: Bet = {
       id: crypto.randomUUID(),
-      matchId: selectedMatch.id,
-      date: new Date().toISOString(),
-      league: selectedMatch.league_name,
-      homePlayer: selectedMatch.home_player,
-      awayPlayer: selectedMatch.away_player,
+      matchId,
+      date: new Date(date).toISOString(),
+      league,
+      homePlayer,
+      awayPlayer,
       market,
       odds: numOdds,
       stake: numStake,
@@ -123,45 +137,55 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
         </button>
       </div>
 
-      {!selectedMatch ? (
+      {!isManual ? (
         <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <p className="text-textMuted text-sm">Selecione uma partida ou crie manualmente:</p>
+            <button 
+              onClick={() => setIsManual(true)}
+              className="px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-lg text-sm font-bold transition-colors"
+            >
+              Criar Manualmente
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm text-textMuted mb-1">Liga</label>
+              <label className="block text-sm text-textMuted mb-1">Filtrar Liga</label>
               <select
-                value={selectedLeague}
-                onChange={(e) => setSelectedLeague(e.target.value)}
+                value={selectedLeagueFilter}
+                onChange={(e) => setSelectedLeagueFilter(e.target.value)}
                 className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
               >
                 <option value="">Todas as Ligas</option>
-                {leagues.map(league => (
-                  <option key={league} value={league}>{league}</option>
+                {leagues.map(l => (
+                  <option key={l} value={l}>{l}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm text-textMuted mb-1">Jogador Casa</label>
+              <label className="block text-sm text-textMuted mb-1">Filtrar Jogador Casa</label>
               <select
-                value={selectedHomePlayer}
-                onChange={(e) => setSelectedHomePlayer(e.target.value)}
+                value={selectedHomePlayerFilter}
+                onChange={(e) => setSelectedHomePlayerFilter(e.target.value)}
                 className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
               >
                 <option value="">Todos</option>
-                {homePlayers.map(player => (
-                  <option key={player} value={player}>{player}</option>
+                {homePlayers.map(p => (
+                  <option key={p} value={p}>{p}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm text-textMuted mb-1">Jogador Fora</label>
+              <label className="block text-sm text-textMuted mb-1">Filtrar Jogador Fora</label>
               <select
-                value={selectedAwayPlayer}
-                onChange={(e) => setSelectedAwayPlayer(e.target.value)}
+                value={selectedAwayPlayerFilter}
+                onChange={(e) => setSelectedAwayPlayerFilter(e.target.value)}
                 className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
               >
                 <option value="">Todos</option>
-                {awayPlayers.map(player => (
-                  <option key={player} value={player}>{player}</option>
+                {awayPlayers.map(p => (
+                  <option key={p} value={p}>{p}</option>
                 ))}
               </select>
             </div>
@@ -176,7 +200,7 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
               filteredMatches.map(match => (
                 <div 
                   key={match.id}
-                  onClick={() => setSelectedMatch(match)}
+                  onClick={() => handleSelectMatch(match)}
                   className="p-3 bg-background/50 rounded-lg border border-white/5 hover:border-primary/50 cursor-pointer transition-colors flex justify-between items-center"
                 >
                   <div className="flex flex-col">
@@ -200,21 +224,69 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg flex justify-between items-center mb-4">
-            <div>
-              <span className="block text-xs text-primary/80">Partida Selecionada</span>
-              <span className="font-bold text-primary">
-                {selectedMatch.home_player} vs {selectedMatch.away_player}
-              </span>
-            </div>
+          <div className="flex justify-between items-center mb-4">
+            <h4 className="font-bold text-textMain">Detalhes da Partida</h4>
             <button 
               type="button" 
-              onClick={() => setSelectedMatch(null)}
-              className="text-xs text-textMuted hover:text-white underline"
+              onClick={() => {
+                setIsManual(false);
+                setMatchId(undefined);
+              }}
+              className="text-xs text-primary hover:text-primary/80 underline"
             >
-              Alterar
+              Voltar para Seleção
             </button>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-textMuted mb-1">Liga</label>
+              <input
+                required
+                type="text"
+                value={league}
+                onChange={(e) => setLeague(e.target.value)}
+                className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
+                placeholder="Ex: Battle 8 min"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-textMuted mb-1">Data</label>
+              <input
+                required
+                type="datetime-local"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-textMuted mb-1">Jogador Casa</label>
+              <input
+                required
+                type="text"
+                value={homePlayer}
+                onChange={(e) => setHomePlayer(e.target.value)}
+                className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
+                placeholder="Nome do Jogador 1"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-textMuted mb-1">Jogador Fora</label>
+              <input
+                required
+                type="text"
+                value={awayPlayer}
+                onChange={(e) => setAwayPlayer(e.target.value)}
+                className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
+                placeholder="Nome do Jogador 2"
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-white/5 my-4"></div>
+
+          <h4 className="font-bold text-textMain mb-4">Detalhes da Aposta</h4>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
