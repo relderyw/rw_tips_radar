@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Swords, Radio, ArrowRight, GitGraphIcon, Grab, GitGraph, InfoIcon, AntennaIcon, Database, Highlighter, TrendingUp } from 'lucide-react';
+import { LayoutDashboard, Users, Swords, Radio, ArrowRight, GitGraphIcon, Grab, GitGraph, InfoIcon, AntennaIcon, Database, Highlighter, TrendingUp, Wallet } from 'lucide-react';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -17,6 +17,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
     { path: '/players', label: 'Métricas de Players', icon: <Users size={20} /> },
     { path: '/h2h', label: 'Head to Head', icon: <Swords size={20} /> },
     { path: '/tendencias', label: 'Tendencias', icon: <TrendingUp size={20} /> },
+    { path: '/betting-manager', label: 'Gerenciador', icon: <Wallet size={20} /> },
   ];
 
   return (
