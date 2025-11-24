@@ -90,7 +90,7 @@ const fetchCaveiraHistory = async (): Promise<HistoryMatch[]> => {
                 },
                 query: {
                     sort: "-time",
-                    limit: 100,
+                    limit: 500,
                     offset: "0"
                 }
             })
@@ -341,7 +341,7 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
         // 1. Correct casing/names for Standard Leagues (from RWTips)
         // 2. Adriatic League data (from Green365)
         
-        const pages = [1, 2, 3]; // Increased pages to get more players
+        const pages = Array.from({ length: 10 }, (_, i) => i + 1); // Fetch 10 pages (1000 games)
         
         // 1. Fetch from RWTips (Old API) - Source of Truth for Standard Leagues
         const rwTipsPromises = pages.map(page => 
