@@ -11,7 +11,9 @@ interface AddBetFormProps {
 export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) => {
   const [matches, setMatches] = useState<Match[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedLeague, setSelectedLeague] = useState('');
+  const [selectedHomePlayer, setSelectedHomePlayer] = useState('');
+  const [selectedAwayPlayer, setSelectedAwayPlayer] = useState('');
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
 
   // Form State
@@ -37,12 +39,17 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
     }
   };
 
-  const filteredMatches = matches.filter(m => 
-    m.home_player.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.away_player.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.home_team.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.away_team.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Extract unique values for dropdowns
+  const leagues = Array.from(new Set(matches.map(m => m.league_name))).sort();
+  const homePlayers = Array.from(new Set(matches.map(m => m.home_player))).sort();
+  const awayPlayers = Array.from(new Set(matches.map(m => m.away_player))).sort();
+
+  const filteredMatches = matches.filter(m => {
+    const matchLeague = !selectedLeague || m.league_name === selectedLeague;
+    const matchHome = !selectedHomePlayer || m.home_player === selectedHomePlayer;
+    const matchAway = !selectedAwayPlayer || m.away_player === selectedAwayPlayer;
+    return matchLeague && matchHome && matchAway;
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,15 +94,46 @@ export const AddBetForm: React.FC<AddBetFormProps> = ({ onAddBet, onCancel }) =>
 
       {!selectedMatch ? (
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-textMuted" size={18} />
-            <input
-              type="text"
-              placeholder="Buscar partida (jogador, time)..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-background border border-white/10 rounded-lg pl-10 pr-4 py-2 text-textMain focus:outline-none focus:border-primary"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-textMuted mb-1">Liga</label>
+              <select
+                value={selectedLeague}
+                onChange={(e) => setSelectedLeague(e.target.value)}
+                className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
+              >
+                <option value="">Todas as Ligas</option>
+                {leagues.map(league => (
+                  <option key={league} value={league}>{league}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-textMuted mb-1">Jogador Casa</label>
+              <select
+                value={selectedHomePlayer}
+                onChange={(e) => setSelectedHomePlayer(e.target.value)}
+                className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
+              >
+                <option value="">Todos</option>
+                {homePlayers.map(player => (
+                  <option key={player} value={player}>{player}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-textMuted mb-1">Jogador Fora</label>
+              <select
+                value={selectedAwayPlayer}
+                onChange={(e) => setSelectedAwayPlayer(e.target.value)}
+                className="w-full bg-background border border-white/10 rounded-lg px-4 py-2 text-textMain focus:outline-none focus:border-primary"
+              >
+                <option value="">Todos</option>
+                {awayPlayers.map(player => (
+                  <option key={player} value={player}>{player}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="max-h-60 overflow-y-auto space-y-2 custom-scrollbar">
