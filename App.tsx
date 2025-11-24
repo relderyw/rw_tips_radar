@@ -8,8 +8,7 @@ import { Overview } from './views/Overview';
 import { PlayerMetrics } from './views/PlayerMetrics';
 import { H2H } from './views/H2H';
 import { LiveGames } from './views/LiveGames';
-import { OverAnalysis } from './views/OverAnalysis';
-import { NBAStats } from './views/NBAStats';
+import { Tendencias } from './views/Tendencias';
 import { Menu } from 'lucide-react';
 
 const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -70,4 +69,4 @@ function App() {
 }
 
 export default App;
-```
+
