@@ -663,6 +663,172 @@ const CompactTableView: React.FC<{ data: PlayerTrend[] }> = ({ data }) => {
   );
 };
 
+
+
+const ConceptGuide: React.FC = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5 flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 mt-1">
+              <Activity size={20} />
+          </div>
+          <div>
+              <h4 className="text-white font-bold text-sm mb-1">Dominância (Saldo de Gols)</h4>
+              <p className="text-xs text-textMuted leading-relaxed">
+                  Indica a força do jogador. <br/>
+                  <span className="text-emerald-400 font-bold">Positiva (+):</span> Marca mais que sofre (Ataque forte/Defesa sólida). <br/>
+                  <span className="text-red-400 font-bold">Negativa (-):</span> Sofre mais que marca (Defesa frágil).
+              </p>
+          </div>
+      </div>
+      <div className="bg-surfaceHighlight/10 p-4 rounded-xl border border-white/5 flex items-start gap-3">
+          <div className="p-2 rounded-lg bg-orange-500/10 text-orange-400 mt-1">
+              <Activity size={20} />
+          </div>
+          <div>
+              <h4 className="text-white font-bold text-sm mb-1">Volatilidade (Instabilidade)</h4>
+              <p className="text-xs text-textMuted leading-relaxed">
+                  Mede a loucura dos jogos. <br/>
+                  <span className="text-emerald-400 font-bold">Baixa (&lt; 1.5):</span> Jogos consistentes, placares "normais". <br/>
+                  <span className="text-orange-400 font-bold">Alta (&gt; 1.5):</span> Jogos imprevisíveis, goleadas, zebras.
+              </p>
+          </div>
+      </div>
+  </div>
+);
+
+const BettingSimulator: React.FC<{ data: PlayerTrend[] }> = ({ data }) => {
+    const [stake, setStake] = useState(250);
+    const [odd, setOdd] = useState(1.70);
+    const [gamesCount, setGamesCount] = useState(10);
+
+    const simulation = useMemo(() => {
+        if (!data || data.length === 0) return [];
+
+        const markets = [
+            { id: 'ft_over25', label: 'Over 2.5 FT', check: (m: any) => (m.score_home + m.score_away) > 2.5 },
+            { id: 'ft_btts', label: 'Ambos Marcam', check: (m: any) => m.score_home > 0 && m.score_away > 0 },
+            { id: 'ht_over05', label: 'Over 0.5 HT', check: (m: any) => (m.halftime_score_home + m.halftime_score_away) > 0.5 },
+            { id: 'ft_over15', label: 'Over 1.5 FT', check: (m: any) => (m.score_home + m.score_away) > 1.5 },
+            { id: 'win', label: 'Vitória (Qualquer)', check: (m: any, p: string) => {
+                const isHome = m.home_player === p;
+                return isHome ? m.score_home > m.score_away : m.score_away > m.score_home;
+            }}
+        ];
+
+        return markets.map(market => {
+            let wins = 0;
+            let losses = 0;
+            let totalBets = 0;
+
+            data.forEach(player => {
+                // Take last N matches
+                const matchesToAnalyze = player.recentMatches ? player.recentMatches.slice(0, gamesCount) : [];
+                matchesToAnalyze.forEach(match => {
+                    totalBets++;
+                    if (market.check(match, player.player)) {
+                        wins++;
+                    } else {
+                        losses++;
+                    }
+                });
+            });
+
+            const profit = (wins * stake * (odd - 1)) - (losses * stake);
+            const roi = totalBets > 0 ? (profit / (totalBets * stake)) * 100 : 0;
+            const units = profit / stake;
+            const winRate = totalBets > 0 ? (wins / totalBets) * 100 : 0;
+
+            return { ...market, wins, losses, totalBets, profit, roi, units, winRate };
+        }).sort((a, b) => b.profit - a.profit);
+
+    }, [data, stake, odd, gamesCount]);
+
+    return (
+        <Card className="p-6 bg-surfaceHighlight/5 border-white/5 mb-8">
+            <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-4">
+                <Target className="text-accent" />
+                Simulador de Lucro (Backtest)
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div>
+                    <label className="block text-[10px] text-textMuted uppercase font-bold mb-1">Entrada (R$)</label>
+                    <input 
+                        type="number" 
+                        value={stake} 
+                        onChange={(e) => setStake(Number(e.target.value))}
+                        className="w-full bg-surface text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent font-mono"
+                    />
+                </div>
+                <div>
+                    <label className="block text-[10px] text-textMuted uppercase font-bold mb-1">Odd Média</label>
+                    <input 
+                        type="number" 
+                        step="0.01"
+                        value={odd} 
+                        onChange={(e) => setOdd(Number(e.target.value))}
+                        className="w-full bg-surface text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent font-mono"
+                    />
+                </div>
+                <div>
+                    <label className="block text-[10px] text-textMuted uppercase font-bold mb-1">Jogos por Player</label>
+                    <select 
+                        value={gamesCount} 
+                        onChange={(e) => setGamesCount(Number(e.target.value))}
+                        className="w-full bg-surface text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent"
+                    >
+                        <option value={5}>Últimos 5</option>
+                        <option value={10}>Últimos 10</option>
+                        <option value={20}>Últimos 20</option>
+                    </select>
+                </div>
+            </div>
+
+            <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="text-[10px] text-textMuted uppercase border-b border-white/10">
+                            <th className="p-2">Mercado</th>
+                            <th className="p-2 text-center">Win Rate</th>
+                            <th className="p-2 text-center">ROI</th>
+                            <th className="p-2 text-center">Lucro (R$)</th>
+                            <th className="p-2 text-center">Unidades</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                        {simulation.map(m => (
+                            <tr key={m.id} className="hover:bg-white/5">
+                                <td className="p-3 font-bold text-sm text-white">{m.label}</td>
+                                <td className="p-3 text-center">
+                                    <Badge value={m.winRate} />
+                                </td>
+                                <td className="p-3 text-center">
+                                    <span className={`font-bold ${m.roi > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                        {m.roi.toFixed(2)}%
+                                    </span>
+                                </td>
+                                <td className="p-3 text-center font-mono font-bold">
+                                    <span className={m.profit > 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                        R$ {m.profit.toFixed(2)}
+                                    </span>
+                                </td>
+                                <td className="p-3 text-center font-mono">
+                                    <span className={`px-2 py-1 rounded text-xs font-bold ${m.units > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                        {m.units > 0 ? '+' : ''}{m.units.toFixed(2)}u
+                                    </span>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            <p className="text-[10px] text-textMuted mt-4 text-center">
+                * Simulação baseada nos últimos {gamesCount} jogos de cada um dos {data.length} jogadores listados abaixo.
+            </p>
+        </Card>
+    );
+};
+
 export const Tendencias: React.FC = () => {
   const [league, setLeague] = useState<string>('A');
   const [availableLeagues, setAvailableLeagues] = useState<string[]>([]);
