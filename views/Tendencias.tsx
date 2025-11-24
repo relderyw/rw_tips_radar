@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
-import { fetchHistoryGames, fetchPlayerHistory } from '../services/api';
+import { fetchHistoryGames, fetchPlayerHistory, fetchH2H } from '../services/api';
 import { HistoryMatch } from '../types';
 import { TrendingUp, AlertTriangle, CheckCircle2, XCircle, Flame, ShieldAlert, Target, Clock, Activity, Shield, Star, Crown, Zap, RefreshCw, Sunrise, Sunset, Info, X } from 'lucide-react';
 
@@ -696,136 +696,307 @@ const ConceptGuide: React.FC = () => (
   </div>
 );
 
-const BettingSimulator: React.FC<{ data: PlayerTrend[] }> = ({ data }) => {
+const BacktestModal: React.FC<{ 
+    isOpen: boolean; 
+    onClose: () => void;
+    leagues: string[];
+    playersByLeague: Record<string, Set<string>>;
+    playerIds: Record<string, number>;
+}> = ({ isOpen, onClose, leagues, playersByLeague, playerIds }) => {
+    const [mode, setMode] = useState<'INDIVIDUAL' | 'H2H'>('INDIVIDUAL');
+    const [league, setLeague] = useState<string>('');
+    const [playerA, setPlayerA] = useState<string>('');
+    const [playerB, setPlayerB] = useState<string>('');
+    
     const [stake, setStake] = useState(250);
     const [odd, setOdd] = useState(1.70);
     const [gamesCount, setGamesCount] = useState(10);
+    
+    const [loading, setLoading] = useState(false);
+    const [results, setResults] = useState<any[]>([]);
+    const [matchCount, setMatchCount] = useState(0);
 
-    const simulation = useMemo(() => {
-        if (!data || data.length === 0) return [];
+    // Reset selection when league changes
+    useEffect(() => {
+        setPlayerA('');
+        setPlayerB('');
+    }, [league]);
 
-        const markets = [
-            { id: 'ft_over25', label: 'Over 2.5 FT', check: (m: any) => (m.score_home + m.score_away) > 2.5 },
-            { id: 'ft_btts', label: 'Ambos Marcam', check: (m: any) => m.score_home > 0 && m.score_away > 0 },
-            { id: 'ht_over05', label: 'Over 0.5 HT', check: (m: any) => (m.halftime_score_home + m.halftime_score_away) > 0.5 },
-            { id: 'ft_over15', label: 'Over 1.5 FT', check: (m: any) => (m.score_home + m.score_away) > 1.5 },
-            { id: 'win', label: 'Vitória (Qualquer)', check: (m: any, p: string) => {
-                const isHome = m.home_player === p;
-                return isHome ? m.score_home > m.score_away : m.score_away > m.score_home;
-            }}
-        ];
+    // Set default league
+    useEffect(() => {
+        if (isOpen && leagues.length > 0 && !league) {
+            setLeague(leagues[0]);
+        }
+    }, [isOpen, leagues]);
 
-        return markets.map(market => {
-            let wins = 0;
-            let losses = 0;
-            let totalBets = 0;
+    const availablePlayers = useMemo(() => {
+        if (!league || !playersByLeague[league]) return [];
+        return Array.from(playersByLeague[league]).sort();
+    }, [league, playersByLeague]);
 
-            data.forEach(player => {
-                // Take last N matches
-                const matchesToAnalyze = player.recentMatches ? player.recentMatches.slice(0, gamesCount) : [];
-                matchesToAnalyze.forEach(match => {
+    const runSimulation = async () => {
+        if (!league || !playerA) return;
+        if (mode === 'H2H' && !playerB) return;
+
+        setLoading(true);
+        setResults([]);
+        
+        try {
+            let matches: HistoryMatch[] = [];
+
+            if (mode === 'INDIVIDUAL') {
+                const pid = playerIds[playerA];
+                matches = await fetchPlayerHistory(playerA, gamesCount, pid);
+            } else {
+                const h2hData = await fetchH2H(playerA, playerB, league);
+                if (h2hData && h2hData.matches) {
+                    // Map H2H matches to HistoryMatch (adding missing league_name)
+                    matches = h2hData.matches.map(m => ({
+                        ...m,
+                        league_name: league,
+                        home_id: undefined,
+                        away_id: undefined
+                    }));
+                    
+                    // Limit if needed
+                    matches = matches.slice(0, gamesCount);
+                }
+            }
+
+            setMatchCount(matches.length);
+
+            const markets = [
+                { id: 'ft_over25', label: 'Over 2.5 FT', check: (m: any) => (m.score_home + m.score_away) > 2.5 },
+                { id: 'ft_btts', label: 'Ambos Marcam', check: (m: any) => m.score_home > 0 && m.score_away > 0 },
+                { id: 'ht_over05', label: 'Over 0.5 HT', check: (m: any) => (m.halftime_score_home + m.halftime_score_away) > 0.5 },
+                { id: 'ft_over15', label: 'Over 1.5 FT', check: (m: any) => (m.score_home + m.score_away) > 1.5 },
+                { id: 'win', label: 'Vitória (Player A)', check: (m: any) => {
+                    // For Individual: Player A win. For H2H: Player A win.
+                    // Need to identify which side Player A is on.
+                    // In H2H matches, we know P1 and P2.
+                    // In Individual matches, we need to check home/away.
+                    
+                    // Normalize check:
+                    const pA = playerA.toLowerCase();
+                    const home = m.home_player.toLowerCase();
+                    const isHome = home.includes(pA) || pA.includes(home); // Loose match
+                    
+                    if (isHome) return m.score_home > m.score_away;
+                    return m.score_away > m.score_home;
+                }}
+            ];
+
+            const calculated = markets.map(market => {
+                let wins = 0;
+                let losses = 0;
+                let totalBets = 0;
+
+                matches.forEach(match => {
                     totalBets++;
-                    if (market.check(match, player.player)) {
+                    if (market.check(match)) {
                         wins++;
                     } else {
                         losses++;
                     }
                 });
-            });
 
-            const profit = (wins * stake * (odd - 1)) - (losses * stake);
-            const roi = totalBets > 0 ? (profit / (totalBets * stake)) * 100 : 0;
-            const units = profit / stake;
-            const winRate = totalBets > 0 ? (wins / totalBets) * 100 : 0;
+                const profit = (wins * stake * (odd - 1)) - (losses * stake);
+                const roi = totalBets > 0 ? (profit / (totalBets * stake)) * 100 : 0;
+                const units = profit / stake;
+                const winRate = totalBets > 0 ? (wins / totalBets) * 100 : 0;
 
-            return { ...market, wins, losses, totalBets, profit, roi, units, winRate };
-        }).sort((a, b) => b.profit - a.profit);
+                return { ...market, wins, losses, totalBets, profit, roi, units, winRate };
+            }).sort((a, b) => b.profit - a.profit);
 
-    }, [data, stake, odd, gamesCount]);
+            setResults(calculated);
+
+        } catch (e) {
+            console.error("Simulation Error:", e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (!isOpen) return null;
 
     return (
-        <Card className="p-6 bg-surfaceHighlight/5 border-white/5 mb-8">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2 mb-4">
-                <Target className="text-accent" />
-                Simulador de Lucro (Backtest)
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div>
-                    <label className="block text-[10px] text-textMuted uppercase font-bold mb-1">Entrada (R$)</label>
-                    <input 
-                        type="number" 
-                        value={stake} 
-                        onChange={(e) => setStake(Number(e.target.value))}
-                        className="w-full bg-surface text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent font-mono"
-                    />
-                </div>
-                <div>
-                    <label className="block text-[10px] text-textMuted uppercase font-bold mb-1">Odd Média</label>
-                    <input 
-                        type="number" 
-                        step="0.01"
-                        value={odd} 
-                        onChange={(e) => setOdd(Number(e.target.value))}
-                        className="w-full bg-surface text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent font-mono"
-                    />
-                </div>
-                <div>
-                    <label className="block text-[10px] text-textMuted uppercase font-bold mb-1">Jogos por Player</label>
-                    <select 
-                        value={gamesCount} 
-                        onChange={(e) => setGamesCount(Number(e.target.value))}
-                        className="w-full bg-surface text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent"
-                    >
-                        <option value={5}>Últimos 5</option>
-                        <option value={10}>Últimos 10</option>
-                        <option value={20}>Últimos 20</option>
-                    </select>
-                </div>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl relative flex flex-col">
+                <button 
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-textMuted hover:text-white transition-colors z-10"
+                >
+                    <X size={24} />
+                </button>
 
-            <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="text-[10px] text-textMuted uppercase border-b border-white/10">
-                            <th className="p-2">Mercado</th>
-                            <th className="p-2 text-center">Win Rate</th>
-                            <th className="p-2 text-center">ROI</th>
-                            <th className="p-2 text-center">Lucro (R$)</th>
-                            <th className="p-2 text-center">Unidades</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/5">
-                        {simulation.map(m => (
-                            <tr key={m.id} className="hover:bg-white/5">
-                                <td className="p-3 font-bold text-sm text-white">{m.label}</td>
-                                <td className="p-3 text-center">
-                                    <Badge value={m.winRate} />
-                                </td>
-                                <td className="p-3 text-center">
-                                    <span className={`font-bold ${m.roi > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                                        {m.roi.toFixed(2)}%
-                                    </span>
-                                </td>
-                                <td className="p-3 text-center font-mono font-bold">
-                                    <span className={m.profit > 0 ? 'text-emerald-400' : 'text-red-400'}>
-                                        R$ {m.profit.toFixed(2)}
-                                    </span>
-                                </td>
-                                <td className="p-3 text-center font-mono">
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${m.units > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                                        {m.units > 0 ? '+' : ''}{m.units.toFixed(2)}u
-                                    </span>
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+                <div className="p-6 border-b border-white/5">
+                    <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+                        <Target className="text-accent" />
+                        Simulador de Backtest
+                    </h2>
+                    <p className="text-textMuted text-sm">Simule lucros baseados em histórico real.</p>
+                </div>
+
+                <div className="p-6 space-y-6 overflow-y-auto">
+                    {/* Controls */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-bold text-textMuted uppercase block mb-2">Modo</label>
+                                <div className="flex bg-black/20 p-1 rounded-lg">
+                                    <button 
+                                        onClick={() => setMode('INDIVIDUAL')}
+                                        className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${mode === 'INDIVIDUAL' ? 'bg-accent text-surface' : 'text-textMuted hover:text-white'}`}
+                                    >
+                                        Individual
+                                    </button>
+                                    <button 
+                                        onClick={() => setMode('H2H')}
+                                        className={`flex-1 py-2 text-sm font-bold rounded-md transition-colors ${mode === 'H2H' ? 'bg-accent text-surface' : 'text-textMuted hover:text-white'}`}
+                                    >
+                                        Head-to-Head
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-bold text-textMuted uppercase block mb-1">Liga</label>
+                                <select 
+                                    value={league}
+                                    onChange={(e) => setLeague(e.target.value)}
+                                    className="w-full bg-surfaceHighlight/10 text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent"
+                                >
+                                    {leagues.map(l => <option key={l} value={l}>{l}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-xs font-bold text-textMuted uppercase block mb-1">Jogador A</label>
+                                    <select 
+                                        value={playerA}
+                                        onChange={(e) => setPlayerA(e.target.value)}
+                                        className="w-full bg-surfaceHighlight/10 text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent"
+                                    >
+                                        <option value="">Selecione...</option>
+                                        {availablePlayers.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                </div>
+                                {mode === 'H2H' && (
+                                    <div>
+                                        <label className="text-xs font-bold text-textMuted uppercase block mb-1">Jogador B</label>
+                                        <select 
+                                            value={playerB}
+                                            onChange={(e) => setPlayerB(e.target.value)}
+                                            className="w-full bg-surfaceHighlight/10 text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent"
+                                        >
+                                            <option value="">Selecione...</option>
+                                            {availablePlayers.filter(p => p !== playerA).map(p => <option key={p} value={p}>{p}</option>)}
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                    <label className="text-xs font-bold text-textMuted uppercase block mb-1">Stake (R$)</label>
+                                    <input 
+                                        type="number" 
+                                        value={stake}
+                                        onChange={(e) => setStake(Number(e.target.value))}
+                                        className="w-full bg-surfaceHighlight/10 text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent font-mono"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-textMuted uppercase block mb-1">Odd Média</label>
+                                    <input 
+                                        type="number" 
+                                        step="0.01"
+                                        value={odd}
+                                        onChange={(e) => setOdd(Number(e.target.value))}
+                                        className="w-full bg-surfaceHighlight/10 text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent font-mono"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-bold text-textMuted uppercase block mb-1">Jogos</label>
+                                    <select 
+                                        value={gamesCount}
+                                        onChange={(e) => setGamesCount(Number(e.target.value))}
+                                        className="w-full bg-surfaceHighlight/10 text-white border border-white/10 rounded-lg px-3 py-2 outline-none focus:border-accent"
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={20}>20</option>
+                                        <option value={50}>50</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={runSimulation}
+                                disabled={loading || !playerA || (mode === 'H2H' && !playerB)}
+                                className="w-full py-3 bg-accent text-surface font-bold rounded-lg hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {loading ? <RefreshCw className="animate-spin" /> : <Target />}
+                                Simular Backtest
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Results */}
+                    {results.length > 0 && (
+                        <div className="animate-fade-in">
+                            <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                                Resultados 
+                                <span className="text-xs font-normal text-textMuted bg-white/10 px-2 py-0.5 rounded-full">
+                                    Baseado em {matchCount} jogos
+                                </span>
+                            </h3>
+                            <div className="overflow-x-auto rounded-xl border border-white/5 bg-surfaceHighlight/5">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="text-[10px] text-textMuted uppercase border-b border-white/10 bg-white/5">
+                                            <th className="p-3">Mercado</th>
+                                            <th className="p-3 text-center">Win Rate</th>
+                                            <th className="p-3 text-center">ROI</th>
+                                            <th className="p-3 text-center">Lucro (R$)</th>
+                                            <th className="p-3 text-center">Unidades</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/5">
+                                        {results.map(m => (
+                                            <tr key={m.id} className="hover:bg-white/5">
+                                                <td className="p-3 font-bold text-sm text-white">{m.label}</td>
+                                                <td className="p-3 text-center">
+                                                    <Badge value={m.winRate} />
+                                                </td>
+                                                <td className="p-3 text-center">
+                                                    <span className={`font-bold ${m.roi > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                        {m.roi.toFixed(2)}%
+                                                    </span>
+                                                </td>
+                                                <td className="p-3 text-center font-mono font-bold">
+                                                    <span className={m.profit > 0 ? 'text-emerald-400' : 'text-red-400'}>
+                                                        R$ {m.profit.toFixed(2)}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3 text-center font-mono">
+                                                    <span className={`px-2 py-1 rounded text-xs font-bold ${m.units > 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                        {m.units > 0 ? '+' : ''}{m.units.toFixed(2)}u
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
-            <p className="text-[10px] text-textMuted mt-4 text-center">
-                * Simulação baseada nos últimos {gamesCount} jogos de cada um dos {data.length} jogadores listados abaixo.
-            </p>
-        </Card>
+        </div>
     );
 };
 
@@ -838,6 +1009,7 @@ export const Tendencias: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<string>('');
   const [showMetricsGuide, setShowMetricsGuide] = useState(false);
+  const [showBacktest, setShowBacktest] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [nextUpdateTimer, setNextUpdateTimer] = useState<number>(120);
 
@@ -968,13 +1140,22 @@ export const Tendencias: React.FC = () => {
            <p className="text-textMuted mt-1">
              Algoritmo de detecção de padrões de alta assertividade.
            </p>
-           <button 
-             onClick={() => setShowMetricsGuide(true)}
-             className="mt-3 text-xs flex items-center gap-1 text-accent hover:text-white transition-colors font-medium"
-           >
-             <Info size={14} />
-             Entenda as métricas
-           </button>
+           <div className="flex gap-4 mt-3">
+                <button 
+                    onClick={() => setShowMetricsGuide(true)}
+                    className="text-xs flex items-center gap-1 text-accent hover:text-white transition-colors font-medium"
+                >
+                    <Info size={14} />
+                    Entenda as métricas
+                </button>
+                <button 
+                    onClick={() => setShowBacktest(true)}
+                    className="text-xs flex items-center gap-1 text-emerald-400 hover:text-white transition-colors font-bold"
+                >
+                    <Target size={14} />
+                    Simulador Backtest
+                </button>
+           </div>
         </div>
         
         <div className="flex items-center gap-3 bg-surface/50 p-1 rounded-xl border border-white/5">
@@ -1007,8 +1188,6 @@ export const Tendencias: React.FC = () => {
       </div>
 
       <ConceptGuide />
-
-      {results.length > 0 && <BettingSimulator data={results} />}
 
       {/* Content */}
       {loading ? (
@@ -1179,6 +1358,13 @@ export const Tendencias: React.FC = () => {
       )}
       
       <MetricsGuideModal isOpen={showMetricsGuide} onClose={() => setShowMetricsGuide(false)} />
+      <BacktestModal 
+        isOpen={showBacktest} 
+        onClose={() => setShowBacktest(false)} 
+        leagues={availableLeagues}
+        playersByLeague={playersByLeague}
+        playerIds={playerIds}
+      />
     </div>
   );
 };
