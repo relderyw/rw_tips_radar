@@ -7,8 +7,7 @@ const H2H_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/confronto
 
 const PLAYER_HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/partidas-assincrono';
 const LIVE_API_URL = 'https://rwtips-r943.onrender.com/api/matches/live';
-const CAVEIRA_API_URL = 'https://esoccer.dev3.caveira.tips/v1/esoccer/search';
-const CAVEIRA_TOKEN = 'Bearer oat_MTIyMDAw.dDJSVU5VSmxaSUcyYmZRMzljai1fU3BsekV1U2FlZmVvblJNNzRhdjIxNjE1MjcwODc';
+
 const CORS_PROXY = 'https://corsproxy.io/?';
 
 // Helper for delay
@@ -55,168 +54,7 @@ const normalizeHistoryMatch = (match: any): HistoryMatch => {
 const playerIdMap = new Map<string, number>();
 const leagueIdMap = new Map<string, number>();
 
-const normalizeCaveiraMatch = (match: any): HistoryMatch => {
-    // Capture IDs
-    if (match.player_home_id && match.player_home_name) playerIdMap.set(match.player_home_name, match.player_home_id);
-    if (match.player_away_id && match.player_away_name) playerIdMap.set(match.player_away_name, match.player_away_id);
-    if (match.league_id && match.league_name) leagueIdMap.set(match.league_name, match.league_id);
 
-    return {
-        home_player: match.player_home_name,
-        away_player: match.player_away_name,
-        league_name: match.league_name,
-        score_home: match.total_goals_home,
-        score_away: match.total_goals_away,
-        halftime_score_home: match.ht_goals_home,
-        halftime_score_away: match.ht_goals_away,
-        data_realizacao: match.time,
-        home_team: match.player_home_team_name,
-        away_team: match.player_away_team_name,
-        home_id: match.player_home_id,
-        away_id: match.player_away_id
-    };
-};
-
-const fetchCaveiraHistory = async (): Promise<HistoryMatch[]> => {
-    try {
-        const pages = [0, 1, 2, 3, 4]; // 5 pages
-        const limit = 20;
-
-        const promises = pages.map(async (pageIndex) => {
-            const offset = pageIndex * limit;
-            
-            // Construct filters based on user observation (offset only in filters if > 0? or always? 
-            // User showed it in page 2. Safe to include or follow exact pattern. 
-            // Pattern: Page 1 (offset 0) didn't have it in filters. Page 2 (offset 20) did.
-            // Let's include it if offset > 0 to be precise, or maybe just always is fine but let's stick to the observed payload if possible.
-            // Actually, usually APIs are consistent. If I send offset 0 in filters it probably works. 
-            // But I'll stick to the user's exact payload structure to be safe.
-            
-            const filters: any = {
-                status: 3,
-                last_7_days: true,
-                sort: "-time"
-            };
-            
-            if (offset > 0) {
-                filters.offset = offset;
-            }
-
-            try {
-                const response = await fetch(CAVEIRA_API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': CAVEIRA_TOKEN,
-                        'Content-Type': 'application/json',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
-                    },
-                    body: JSON.stringify({
-                        filters: filters,
-                        query: {
-                            sort: "-time",
-                            limit: limit,
-                            offset: offset
-                        }
-                    })
-                });
-
-                if (!response.ok) return [];
-                const json = await response.json();
-                if (json.success && json.data && Array.isArray(json.data.results)) {
-                    return json.data.results.map(normalizeCaveiraMatch);
-                }
-                return [];
-            } catch (e) {
-                console.error(`Caveira Page ${pageIndex} Error:`, e);
-                return [];
-            }
-        });
-
-        const results = await Promise.all(promises);
-        return results.flat();
-    } catch (error) {
-        console.error("Caveira API Error:", error);
-        return [];
-    }
-};
-
-const fetchCaveiraAnalysis = async (player1Id: number, player2Id: number, leagueId: number): Promise<H2HResponse | null> => {
-    try {
-        const response = await fetch('https://esoccer.dev3.caveira.tips/v1/esoccer/analysis', {
-            method: 'POST',
-            headers: {
-                'Authorization': CAVEIRA_TOKEN,
-                'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
-            },
-            body: JSON.stringify({
-                league_id: String(leagueId),
-                player_id_1: String(player1Id),
-                player_id_2: String(player2Id),
-                last_games: "all"
-            })
-        });
-
-        if (!response.ok) return null;
-        const json = await response.json();
-        
-        if (json.success && json.data) {
-            const d = json.data;
-            
-            // Helper to normalize analysis matches
-            const norm = (list: any[]): HistoryMatch[] => {
-                if (!Array.isArray(list)) return [];
-                return list.map(m => ({
-                    home_player: m.player_home_name,
-                    away_player: m.player_away_name,
-                    league_name: m.league_name,
-                    score_home: m.total_goals_home,
-                    score_away: m.total_goals_away,
-                    halftime_score_home: m.ht_goals_home,
-                    halftime_score_away: m.ht_goals_away,
-                    data_realizacao: m.time,
-                    home_team: m.player_home_team_name,
-                    away_team: m.player_away_team_name,
-                    home_id: m.player_home_id,
-                    away_id: m.player_away_id
-                }));
-            };
-
-            const matches = norm(d.last_events);
-            const p1Matches = norm(d.last_events_p1);
-            const p2Matches = norm(d.last_events_p2);
-
-            // Calculate wins/draws from matches
-            let p1Wins = 0, p2Wins = 0, draws = 0;
-            matches.forEach(m => {
-                if (m.score_home === m.score_away) draws++;
-                else if (m.home_id === player1Id) {
-                    if (m.score_home > m.score_away) p1Wins++; else p2Wins++;
-                } else {
-                    if (m.score_away > m.score_home) p1Wins++; else p2Wins++;
-                }
-            });
-            const total = matches.length;
-
-            return {
-                total_matches: total,
-                player1_wins: p1Wins,
-                player2_wins: p2Wins,
-                draws: draws,
-                player1_win_percentage: total > 0 ? (p1Wins / total) * 100 : 0,
-                player2_win_percentage: total > 0 ? (p2Wins / total) * 100 : 0,
-                draw_percentage: total > 0 ? (draws / total) * 100 : 0,
-                matches: matches,
-                player1_stats: { games: p1Matches },
-                player2_stats: { games: p2Matches }
-            };
-        }
-        return null;
-    } catch (error) {
-        console.error("Caveira Analysis Error:", error);
-        return null;
-    }
-};
 
 export const fetchGames = async (): Promise<Game[]> => {
   const MAX_PAGES = 10;
@@ -329,12 +167,8 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
       }
   }
 
-  // Fallback to Caveira Analysis if Green365 failed or IDs missing (but Caveira also needs IDs...)
-  if (p1Id && p2Id && lId) {
-      const analysis = await fetchCaveiraAnalysis(p1Id, p2Id, lId);
-      if (analysis) return analysis;
-  }
-
+  // Fallback to Caveira Analysis REMOVED
+  
   return null;
 };
 
@@ -363,14 +197,8 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
             })
         );
 
-        // Fetch from Caveira API (Additional Source)
-        const caveiraPromise = fetchCaveiraHistory();
-
-        const results = await Promise.all([...green365Promises, caveiraPromise]);
+        const results = await Promise.all(green365Promises);
         let allMatches: any[] = [];
-
-        // Handle Caveira results separately as they are already normalized
-        const caveiraMatches = results.pop(); 
         
         results.forEach(data => {
             if (data) {
@@ -382,10 +210,7 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
             }
         });
 
-        const normalizedGreen365 = allMatches.map(normalizeHistoryMatch);
-        
-        // Merge with Caveira matches
-        return [...normalizedGreen365, ...(Array.isArray(caveiraMatches) ? caveiraMatches : [])];
+        return allMatches.map(normalizeHistoryMatch);
     } catch (error) {
         console.error("Error fetching history games:", error);
         return [];
