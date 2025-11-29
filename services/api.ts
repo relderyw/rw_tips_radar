@@ -187,6 +187,7 @@ const HISTORY_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events';
 
 export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     try {
+        console.log('[fetchHistoryGames] Starting to fetch recent games...');
         const pages = Array.from({ length: 5 }, (_, i) => i + 1);
         
         const green365Promises = pages.map(page => 
@@ -214,7 +215,18 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
             }
         });
 
-        return allMatches.map(normalizeHistoryMatch);
+        const normalized = allMatches.map(normalizeHistoryMatch);
+        console.log(`[fetchHistoryGames] Loaded ${normalized.length} matches from ${pages.length} pages`);
+        
+        // Log sample of player names
+        if (normalized.length > 0) {
+            const sampleNames = normalized.slice(0, 3).map(m => 
+                `"${m.home_player}" vs "${m.away_player}"`
+            );
+            console.log('[fetchHistoryGames] Sample player names:', sampleNames);
+        }
+        
+        return normalized;
     } catch (error) {
         console.error("Error fetching history games:", error);
         return [];
@@ -239,6 +251,12 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
     try {
         if (!playerId) {
             playerId = playerIdMap.get(player.toLowerCase());
+            if (playerId) {
+                console.log(`[ID Found] Player "${player}" → ID ${playerId}`);
+            } else {
+                console.warn(`[No ID] Player "${player}" (lowercase: "${player.toLowerCase()}") not in cache`);
+                console.log(`[Cache Content] Players in cache:`, Array.from(playerIdMap.keys()).slice(0, 10));
+            }
         }
 
         if (playerId) {
@@ -285,11 +303,24 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
         
         const recentGames = await fetchHistoryGames();
         console.log(`[Fallback] Searching ${player} in ${recentGames.length} recent games...`);
+        console.log(`[Fallback] Searching for: "${player.toLowerCase()}"`);
         
-        const playerMatches = recentGames.filter(m => 
-            m.home_player.toLowerCase() === player.toLowerCase() || 
-            m.away_player.toLowerCase() === player.toLowerCase()
-        ).slice(0, limit);
+        // Log first 5 player names for comparison
+        const samplePlayers = recentGames.slice(0, 5).map(m => 
+            `${m.home_player.toLowerCase()} vs ${m.away_player.toLowerCase()}`
+        );
+        console.log(`[Fallback] Sample players in recent games:`, samplePlayers);
+        
+        const playerMatches = recentGames.filter(m => {
+            const homeMatch = m.home_player.toLowerCase() === player.toLowerCase();
+            const awayMatch = m.away_player.toLowerCase() === player.toLowerCase();
+            
+            if (homeMatch || awayMatch) {
+                console.log(`[Fallback] Match found: ${m.home_player} vs ${m.away_player}`);
+            }
+            
+            return homeMatch || awayMatch;
+        }).slice(0, limit);
 
         if (playerMatches.length > 0) {
             playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: playerMatches });
