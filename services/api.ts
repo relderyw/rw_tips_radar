@@ -1,14 +1,8 @@
-
 import { Game, H2HResponse, HistoryResponse, HistoryMatch, LiveGame } from '../types';
 
-// Updated to Green365 API
+// Green365 API URLs
 const GAMES_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events';
-const H2H_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/confronto';
-
-const PLAYER_HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/partidas-assincrono';
 const LIVE_API_URL = 'https://rwtips-r943.onrender.com/api/matches/live';
-
-const CORS_PROXY = 'https://corsproxy.io/?';
 
 // Helper for delay
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -63,20 +57,19 @@ export const fetchGames = async (): Promise<Game[]> => {
 
   const fetchPage = async (page: number) => {
       try {
-          // New API params
-          const url = `${HISTORY_API_URL}?page=${page}&limit=50&sport=esoccer&status=ended`;
-          const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+          const url = `${GAMES_API_URL}?page=${page}&limit=50&sport=esoccer&status=ended`;
+          const response = await fetch(url, { 
+              headers: { 
+                  'Accept': 'application/json',
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              } 
+          });
           
           if (!response.ok) return [];
           
           const data = await response.json();
           
-          // New API returns items in data.items
           if (data.items && Array.isArray(data.items)) return data.items;
-          
-          // Old fallbacks
-          if (data.partidas && Array.isArray(data.partidas)) return data.partidas;
-          if (data.matches && Array.isArray(data.matches)) return data.matches;
           if (Array.isArray(data)) return data;
           
           return [];
@@ -98,95 +91,92 @@ export const fetchGames = async (): Promise<Game[]> => {
 };
 
 export const fetchH2H = async (player1: string, player2: string, league: string): Promise<H2HResponse | null> => {
-  // Try to get IDs from cache
   const p1Id = playerIdMap.get(player1);
   const p2Id = playerIdMap.get(player2);
   const lId = leagueIdMap.get(league);
 
-  // If we don't have IDs, we might fail with the new API. 
-  // However, we can try to proceed if we have at least some info or fallback?
-  // The new API REQUIRES IDs.
-  
   if (!p1Id || !p2Id || !lId) {
       console.warn(`Missing IDs for H2H: ${player1}(${p1Id}) vs ${player2}(${p2Id}) in ${league}(${lId})`);
-      // We could try to search for the player/league here if we had a search endpoint, 
-      // but for now we rely on the cache being populated by fetchHistoryGames.
-      // Fallback to Caveira if possible or return null?
-      // Let's try Caveira as fallback if IDs exist there (shared map)
+      return null;
   }
 
-  // STRATEGY: Use New Green365 H2H API if IDs are available
-  if (p1Id && p2Id && lId) {
-      const url = `https://api-v2.green365.com.br/api/v2/analysis/sport/dynamic?type=h2h&sport=esoccer&status=manual&competitionID=${lId}&home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&homeID=${p1Id}&awayID=${p2Id}&period=50g`;
-      
-      try {
-          const response = await fetch(url, {
-              headers: {
-                  'Accept': 'application/json',
-                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-              }
-          });
-
-          if (response.ok) {
-              const data = await response.json();
-              
-              if (data.headToHeadEvents && Array.isArray(data.headToHeadEvents)) {
-                  const matches = data.headToHeadEvents.map(normalizeHistoryMatch);
-                  const p1Matches = (data.homeEvents || []).map(normalizeHistoryMatch);
-                  const p2Matches = (data.awayEvents || []).map(normalizeHistoryMatch);
-
-                  // Calculate stats
-                  let p1Wins = 0, p2Wins = 0, draws = 0;
-                  matches.forEach(m => {
-                      if (m.score_home === m.score_away) draws++;
-                      else if (m.home_player === player1) { // Assuming name match works, or use ID check if available in normalized
-                           if (m.score_home > m.score_away) p1Wins++; else p2Wins++;
-                      } else {
-                           if (m.score_away > m.score_home) p1Wins++; else p2Wins++;
-                      }
-                  });
-                  
-                  const total = matches.length;
-
-                  return {
-                      total_matches: total,
-                      player1_wins: p1Wins,
-                      player2_wins: p2Wins,
-                      draws: draws,
-                      player1_win_percentage: total > 0 ? (p1Wins / total) * 100 : 0,
-                      player2_win_percentage: total > 0 ? (p2Wins / total) * 100 : 0,
-                      draw_percentage: total > 0 ? (draws / total) * 100 : 0,
-                      matches: matches,
-                      player1_stats: { games: p1Matches },
-                      player2_stats: { games: p2Matches }
-                  };
-              }
-          }
-      } catch (e) {
-          console.error("Green365 H2H Error:", e);
-      }
-  }
-
-  // Fallback to Caveira Analysis REMOVED
+  const url = `https://api-v2.green365.com.br/api/v2/analysis/sport/dynamic?type=h2h&sport=esoccer&status=manual&competitionID=${lId}&home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&homeID=${p1Id}&awayID=${p2Id}&period=50g`;
   
-  return null;
+  try {
+      const response = await fetch(url, {
+          headers: {
+              'Accept': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+      });
+
+      if (!response.ok) return null;
+
+      const data = await response.json();
+      
+      console.log("H2H API Response Structure:", JSON.stringify(Object.keys(data), null, 2));
+      
+      const sessionEvents = data.info?.sessions?.sessionEvents || data.sessions?.sessionEvents || data.sessionEvents;
+      
+      if (!sessionEvents) {
+          console.error("sessionEvents not found. Available keys:", Object.keys(data));
+          return null;
+      }
+
+      const headToHeadEvents = sessionEvents.headToHeadEvents || [];
+      const homeEvents = sessionEvents.homeEvents || [];
+      const awayEvents = sessionEvents.awayEvents || [];
+
+      console.log(`H2H Events found: ${headToHeadEvents.length}, Home: ${homeEvents.length}, Away: ${awayEvents.length}`);
+
+      const matches = headToHeadEvents.map(normalizeHistoryMatch);
+      const p1Matches = homeEvents.map(normalizeHistoryMatch);
+      const p2Matches = awayEvents.map(normalizeHistoryMatch);
+
+      let p1Wins = 0, p2Wins = 0, draws = 0;
+      matches.forEach(m => {
+          if (m.score_home === m.score_away) {
+              draws++;
+          } else if (m.home_player === player1) {
+              if (m.score_home > m.score_away) p1Wins++; 
+              else p2Wins++;
+          } else {
+              if (m.score_away > m.score_home) p1Wins++; 
+              else p2Wins++;
+          }
+      });
+      
+      const total = matches.length;
+
+      return {
+          total_matches: total,
+          player1_wins: p1Wins,
+          player2_wins: p2Wins,
+          draws: draws,
+          player1_win_percentage: total > 0 ? (p1Wins / total) * 100 : 0,
+          player2_win_percentage: total > 0 ? (p2Wins / total) * 100 : 0,
+          draw_percentage: total > 0 ? (draws / total) * 100 : 0,
+          matches: matches,
+          player1_stats: { games: p1Matches },
+          player2_stats: { games: p2Matches }
+      };
+  } catch (e) {
+      console.error("Green365 H2H Error:", e);
+      return null;
+  }
 };
 
-// const HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas'; // Old API
-const RWTIPS_HISTORY_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas'; // Old API (Source of Truth for Standard Leagues)
-const HISTORY_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events'; // New API
+const HISTORY_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events';
 
 export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     try {
-        // Fetch from Green365 API - 5 pages as requested
-        const pages = Array.from({ length: 5 }, (_, i) => i + 1); // Fetch 5 pages
+        const pages = Array.from({ length: 5 }, (_, i) => i + 1);
         
-        // Fetch from Green365 API
         const green365Promises = pages.map(page => 
             fetch(`${HISTORY_API_URL}?page=${page}&limit=24&sport=esoccer&status=ended`, { 
                 headers: { 
                     'Accept': 'application/json',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
                 } 
             }).then(res => {
                 if (!res.ok) console.error(`Green365 Fetch Error Page ${page}:`, res.status);
@@ -202,10 +192,7 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
         
         results.forEach(data => {
             if (data) {
-                // Green365 structure - items array
                 if (data.items && Array.isArray(data.items)) allMatches = [...allMatches, ...data.items];
-                // Fallbacks
-                else if (data.data && Array.isArray(data.data)) allMatches = [...allMatches, ...data.data];
                 else if (Array.isArray(data)) allMatches = [...allMatches, ...data];
             }
         });
@@ -224,7 +211,6 @@ const playerHistoryCache = new Map<string, { timestamp: number, data: HistoryMat
 export const fetchPlayerHistory = async (player: string, limit: number = 20, playerId?: number): Promise<HistoryMatch[]> => {
     const cacheKey = `${player}-${playerId || 'noid'}-${limit}`;
     
-    // Check Cache
     if (playerHistoryCache.has(cacheKey)) {
         const cached = playerHistoryCache.get(cacheKey)!;
         if (Date.now() - cached.timestamp < CACHE_TTL) {
@@ -233,49 +219,47 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
     }
 
     try {
-        // Try to find ID in map if not provided
         if (!playerId) {
             playerId = playerIdMap.get(player);
         }
 
-        if (playerId) {
-            // Use New Green365 API
-            const period = `${limit}g`; // e.g. "20g"
-            const url = `https://api-v2.green365.com.br/api/v2/analysis/participant/dynamic?sport=esoccer&participantID=${playerId}&participantName=${encodeURIComponent(player)}&period=${period}`;
-            
-            const response = await fetch(url, { 
-                headers: { 
-                    'Accept': 'application/json',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
-                } 
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                
-                // Structure: sessionEvents.events
-                let rawEvents: any[] = [];
-                
-                if (data.sessionEvents && Array.isArray(data.sessionEvents.events)) {
-                    rawEvents = data.sessionEvents.events;
-                } else if (data.sessions && data.sessions.sessionEvents && Array.isArray(data.sessions.sessionEvents.events)) {
-                     rawEvents = data.sessions.sessionEvents.events;
-                }
-
-                if (rawEvents.length > 0) {
-                    const result = rawEvents.map(normalizeHistoryMatch);
-                    playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
-                    return result;
-                }
-            }
+        if (!playerId) {
+            console.warn(`No ID found for player ${player}, cannot fetch history from Green365.`);
+            return [];
         }
 
-        // Fallback to old API if no ID or new API fails (though old API might be dead/deprecated)
-        // Or just return empty if we strictly want to use the new one.
-        // Given the user request, let's try to stick to the new one, but if we don't have ID, we can't use it.
+        const period = `${limit}g`;
+        const url = `https://api-v2.green365.com.br/api/v2/analysis/participant/dynamic?sport=esoccer&participantID=${playerId}&participantName=${encodeURIComponent(player)}&period=${period}`;
         
-        if (!playerId) {
-             console.warn(`No ID found for player ${player}, cannot fetch history from Green365.`);
+        const response = await fetch(url, { 
+            headers: { 
+                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            } 
+        });
+        
+        if (!response.ok) return [];
+
+        const data = await response.json();
+        
+        console.log("Player History API Response Structure:", JSON.stringify(Object.keys(data), null, 2));
+        
+        let rawEvents: any[] = [];
+        
+        if (data.info?.sessions?.sessionEvents?.events && Array.isArray(data.info.sessions.sessionEvents.events)) {
+            rawEvents = data.info.sessions.sessionEvents.events;
+        } else if (data.sessions?.sessionEvents?.events && Array.isArray(data.sessions.sessionEvents.events)) {
+            rawEvents = data.sessions.sessionEvents.events;
+        } else if (data.sessionEvents?.events && Array.isArray(data.sessionEvents.events)) {
+            rawEvents = data.sessionEvents.events;
+        }
+
+        console.log(`Player ${player} history events found: ${rawEvents.length}`);
+
+        if (rawEvents.length > 0) {
+            const result = rawEvents.map(normalizeHistoryMatch);
+            playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
+            return result;
         }
 
         return [];

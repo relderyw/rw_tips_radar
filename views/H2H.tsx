@@ -335,9 +335,8 @@ export const H2H: React.FC = () => {
             const h2h = await fetchH2H(p1, p2, l);
             setH2HData(h2h);
 
-            // OPTIMIZATION: For Adriatic League, use the data already returned by fetchH2H
-            if ((l.includes('Adriatic') || l.includes('10 mins play')) && h2h?.player1_stats && h2h?.player2_stats) {
-                // Check if data is already normalized (Caveira API returns normalized HistoryMatch[])
+            // OPTIMIZATION: Use the data already returned by fetchH2H
+            if (h2h?.player1_stats && h2h?.player2_stats) {
                 const isNormalized = (games: any[]) => games.length > 0 && games[0].score_home !== undefined;
 
                 if (h2h.player1_stats.games && isNormalized(h2h.player1_stats.games)) {
