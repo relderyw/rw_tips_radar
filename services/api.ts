@@ -1,8 +1,10 @@
 import { Game, H2HResponse, HistoryResponse, HistoryMatch, LiveGame } from '../types';
 
-// Green365 API URLs
+// API URLs
 const GAMES_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events';
 const LIVE_API_URL = 'https://rwtips-r943.onrender.com/api/matches/live';
+const RWTIPS_PLAYER_HISTORY_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/partidas-assincrono';
+const RWTIPS_H2H_URL = 'https://rwtips-r943.onrender.com/api/v1/historico/confronto';
 
 // Helper for delay
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -107,19 +109,74 @@ export const fetchGames = async (): Promise<Game[]> => {
   return allGames;
 };
 
-export const fetchH2H = async (player1: string, player2: string, league: string): Promise<H2HResponse | null> => {
+// Fetch H2H from rwtips API (for live games and manual queries)
+export const fetchH2HRwtips = async (player1: string, player2: string): Promise<H2HResponse | null> => {
+    try {
+        console.log(`[Rwtips H2H] Fetching ${player1} vs ${player2}...`);
+        const url = `${RWTIPS_H2H_URL}/${encodeURIComponent(player1)}/${encodeURIComponent(player2)}?page=1&limit=50`;
+        
+        const response = await fetch(url, {
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            console.warn(`[Rwtips H2H] HTTP ${response.status}`);
+            return null;
+        }
+
+        const data = await response.json();
+        console.log(`[Rwtips H2H] Found ${data.total_matches} total matches`);
+
+        // Normalize matches
+        const matches = data.matches?.map((m: any) => ({
+            home_player: m.home_player || "Desconhecido",
+            away_player: m.away_player || "Desconhecido",
+            league_name: m.league_name || "Desconhecida",
+            score_home: Number(m.score_home ?? 0),
+            score_away: Number(m.score_away ?? 0),
+            halftime_score_home: Number(m.halftime_score_home ?? 0),
+            halftime_score_away: Number(m.halftime_score_away ?? 0),
+            data_realizacao: m.data_realizacao || new Date().toISOString()
+        })) || [];
+
+        return {
+            total_matches: data.total_matches || 0,
+            player1_wins: data.player1_wins || 0,
+            player2_wins: data.player2_wins || 0,
+            draws: data.draws || 0,
+            player1_win_percentage: data.player1_win_percentage || 0,
+            player2_win_percentage: data.player2_win_percentage || 0,
+            draw_percentage: data.draw_percentage || 0,
+            matches: matches,
+            player1_stats: { games: [] }, // Will be fetched separately if needed
+            player2_stats: { games: [] }
+        };
+    } catch (error) {
+        console.error(`[Rwtips H2H] Error:`, error);
+        return null;
+    }
+};
+
+export const fetchH2H = async (player1: string, player2: string, league: string, useRwtips: boolean = false): Promise<H2HResponse | null> => {
+  // If useRwtips is true (for live games), use rwtips API
+  if (useRwtips) {
+      return fetchH2HRwtips(player1, player2);
+  }
+
   const p1Id = playerIdMap.get(player1.toLowerCase());
   const p2Id = playerIdMap.get(player2.toLowerCase());
   const lId = leagueIdMap.get(league);
 
   if (!p1Id || !p2Id || !lId) {
-      console.warn(`Missing IDs for H2H: ${player1}(${p1Id}) vs ${player2}(${p2Id}) in ${league}(${lId})`);
-      return null;
+      console.warn(`[Green365 H2H] Missing IDs: ${player1}(${p1Id}) vs ${player2}(${p2Id}) in ${league}(${lId})`);
+      console.warn(`[Fallback] Using rwtips API instead...`);
+      return fetchH2HRwtips(player1, player2);
   }
 
   const url = `https://api-v2.green365.com.br/api/v2/analysis/sport/dynamic?type=h2h&sport=esoccer&status=manual&competitionID=${lId}&home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&homeID=${p1Id}&awayID=${p2Id}&period=50g`;
   
   try {
+      console.log(`[Green365 H2H] Fetching ${player1} vs ${player2}...`);
       const response = await fetch(url, {
           headers: {
               'Accept': 'application/json',
@@ -127,24 +184,25 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
           }
       });
 
-      if (!response.ok) return null;
+      if (!response.ok) {
+          console.warn(`[Green365 H2H] HTTP ${response.status}, falling back to rwtips...`);
+          return fetchH2HRwtips(player1, player2);
+      }
 
       const data = await response.json();
-      
-      console.log("H2H API Response Structure:", JSON.stringify(Object.keys(data), null, 2));
       
       const sessionEvents = data.info?.sessions?.sessionEvents || data.sessions?.sessionEvents || data.sessionEvents;
       
       if (!sessionEvents) {
-          console.error("sessionEvents not found. Available keys:", Object.keys(data));
-          return null;
+          console.warn(`[Green365 H2H] sessionEvents not found, falling back to rwtips...`);
+          return fetchH2HRwtips(player1, player2);
       }
 
       const headToHeadEvents = sessionEvents.headToHeadEvents || [];
       const homeEvents = sessionEvents.homeEvents || [];
       const awayEvents = sessionEvents.awayEvents || [];
 
-      console.log(`H2H Events found: ${headToHeadEvents.length}, Home: ${homeEvents.length}, Away: ${awayEvents.length}`);
+      console.log(`[Green365 H2H] Events found: ${headToHeadEvents.length}, Home: ${homeEvents.length}, Away: ${awayEvents.length}`);
 
       const matches = headToHeadEvents.map(normalizeHistoryMatch);
       const p1Matches = homeEvents.map(normalizeHistoryMatch);
@@ -178,8 +236,9 @@ export const fetchH2H = async (player1: string, player2: string, league: string)
           player2_stats: { games: p2Matches }
       };
   } catch (e) {
-      console.error("Green365 H2H Error:", e);
-      return null;
+      console.error("[Green365 H2H] Error:", e);
+      console.warn(`[Fallback] Using rwtips API instead...`);
+      return fetchH2HRwtips(player1, player2);
   }
 };
 
@@ -237,7 +296,63 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
 const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
 const playerHistoryCache = new Map<string, { timestamp: number, data: HistoryMatch[] }>();
 
-export const fetchPlayerHistory = async (player: string, limit: number = 20, playerId?: number): Promise<HistoryMatch[]> => {
+// Fetch player history from rwtips API (for live games)
+export const fetchPlayerHistoryRwtips = async (player: string, limit: number = 20): Promise<HistoryMatch[]> => {
+    const cacheKey = `rwtips-${player.toLowerCase()}-${limit}`;
+    
+    if (playerHistoryCache.has(cacheKey)) {
+        const cached = playerHistoryCache.get(cacheKey)!;
+        if (Date.now() - cached.timestamp < CACHE_TTL) {
+            console.log(`[Cache Hit] Returning cached rwtips data for ${player}`);
+            return cached.data;
+        }
+    }
+
+    try {
+        console.log(`[Rwtips API] Fetching history for ${player}...`);
+        const url = `${RWTIPS_PLAYER_HISTORY_URL}?jogador=${encodeURIComponent(player)}&page=1&limit=${limit}`;
+        
+        const response = await fetch(url, {
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!response.ok) {
+            console.warn(`[Rwtips API] HTTP ${response.status} for player ${player}`);
+            return [];
+        }
+
+        const data = await response.json();
+        
+        if (data.partidas && Array.isArray(data.partidas)) {
+            const matches = data.partidas.map((p: any) => ({
+                home_player: p.home_player || p.homePlayer || "Desconhecido",
+                away_player: p.away_player || p.awayPlayer || "Desconhecido",
+                league_name: p.league_name || p.league || "Desconhecida",
+                score_home: Number(p.score_home ?? 0),
+                score_away: Number(p.score_away ?? 0),
+                halftime_score_home: Number(p.halftime_score_home ?? 0),
+                halftime_score_away: Number(p.halftime_score_away ?? 0),
+                data_realizacao: p.data_realizacao || new Date().toISOString()
+            }));
+
+            playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: matches });
+            console.log(`[Rwtips API] Found ${matches.length} matches for ${player}`);
+            return matches;
+        }
+
+        return [];
+    } catch (error) {
+        console.error(`[Rwtips API] Error fetching history for ${player}:`, error);
+        return [];
+    }
+};
+
+export const fetchPlayerHistory = async (player: string, limit: number = 20, playerId?: number, useRwtips: boolean = false): Promise<HistoryMatch[]> => {
+    // If useRwtips is true (for live games), use rwtips API directly
+    if (useRwtips) {
+        return fetchPlayerHistoryRwtips(player, limit);
+    }
+
     const cacheKey = `${player.toLowerCase()}-${playerId || 'noid'}-${limit}`;
     
     if (playerHistoryCache.has(cacheKey)) {
@@ -253,9 +368,6 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
             playerId = playerIdMap.get(player.toLowerCase());
             if (playerId) {
                 console.log(`[ID Found] Player "${player}" → ID ${playerId}`);
-            } else {
-                console.warn(`[No ID] Player "${player}" (lowercase: "${player.toLowerCase()}") not in cache`);
-                console.log(`[Cache Content] Players in cache:`, Array.from(playerIdMap.keys()).slice(0, 10));
             }
         }
 
@@ -263,7 +375,7 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
             const period = `${limit}g`;
             const url = `https://api-v2.green365.com.br/api/v2/analysis/participant/dynamic?sport=esoccer&participantID=${playerId}&participantName=${encodeURIComponent(player)}&period=${period}`;
             
-            console.log(`[API Call] Fetching history for ${player} (ID: ${playerId})...`);
+            console.log(`[Green365 API] Fetching history for ${player} (ID: ${playerId})...`);
             
             const response = await fetch(url, { 
                 headers: { 
@@ -275,8 +387,6 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
             if (response.ok) {
                 const data = await response.json();
                 
-                console.log("Player History API Response Structure:", JSON.stringify(Object.keys(data), null, 2));
-                
                 let rawEvents: any[] = [];
                 
                 if (data.info?.sessions?.sessionEvents?.events && Array.isArray(data.info.sessions.sessionEvents.events)) {
@@ -287,52 +397,21 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
                     rawEvents = data.sessionEvents.events;
                 }
 
-                console.log(`Player ${player} history events found: ${rawEvents.length}`);
-
                 if (rawEvents.length > 0) {
                     const result = rawEvents.map(normalizeHistoryMatch);
                     playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
+                    console.log(`[Green365 API] Found ${result.length} matches for ${player}`);
                     return result;
                 }
-            } else {
-                console.warn(`[API Error] HTTP ${response.status} for player ${player}`);
             }
         }
 
-        console.warn(`[Fallback] No ID for player ${player}, searching in recent games...`);
-        
-        const recentGames = await fetchHistoryGames();
-        console.log(`[Fallback] Searching ${player} in ${recentGames.length} recent games...`);
-        console.log(`[Fallback] Searching for: "${player.toLowerCase()}"`);
-        
-        // Log first 5 player names for comparison
-        const samplePlayers = recentGames.slice(0, 5).map(m => 
-            `${m.home_player.toLowerCase()} vs ${m.away_player.toLowerCase()}`
-        );
-        console.log(`[Fallback] Sample players in recent games:`, samplePlayers);
-        
-        const playerMatches = recentGames.filter(m => {
-            const homeMatch = m.home_player.toLowerCase() === player.toLowerCase();
-            const awayMatch = m.away_player.toLowerCase() === player.toLowerCase();
-            
-            if (homeMatch || awayMatch) {
-                console.log(`[Fallback] Match found: ${m.home_player} vs ${m.away_player}`);
-            }
-            
-            return homeMatch || awayMatch;
-        }).slice(0, limit);
-
-        if (playerMatches.length > 0) {
-            playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: playerMatches });
-            console.log(`[Fallback Success] Found ${playerMatches.length} matches for ${player} in recent games`);
-            return playerMatches;
-        }
-
-        console.warn(`[Fallback Failed] No matches found for player ${player}`);
-        return [];
+        // Fallback to rwtips API
+        console.warn(`[Fallback] Using rwtips API for ${player}...`);
+        return fetchPlayerHistoryRwtips(player, limit);
 
     } catch (error) {
-        console.error(`[Error] Error fetching specific history for player ${player} (ID: ${playerId}):`, error);
+        console.error(`[Error] Error fetching history for player ${player}:`, error);
         return [];
     }
 };

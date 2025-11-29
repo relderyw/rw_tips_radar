@@ -265,7 +265,7 @@ export const LiveGames: React.FC = () => {
             await Promise.all(batch.map(async (player) => {
                 try {
                     console.log(`[LiveGames] Fetching history for ${player}...`);
-                    const history = await fetchPlayerHistory(player, 10);
+                    const history = await fetchPlayerHistory(player, 10, undefined, true); // useRwtips = true
                     console.log(`[LiveGames] Got ${history.length} matches for ${player}`);
                     
                     const stats = calculateHistoryPlayerStats(history, player, 10);
