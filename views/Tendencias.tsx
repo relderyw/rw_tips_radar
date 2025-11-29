@@ -750,7 +750,8 @@ const BacktestModal: React.FC<{
 
             if (mode === 'INDIVIDUAL') {
                 const pid = playerIds[playerA];
-                matches = await fetchPlayerHistory(playerA, gamesCount, pid);
+                // If no ID, use rwtips
+                matches = await fetchPlayerHistory(playerA, gamesCount, pid, !pid);
             } else {
                 const h2hData = await fetchH2H(playerA, playerB, league);
                 if (h2hData && h2hData.matches) {
@@ -1179,7 +1180,7 @@ export const Tendencias: React.FC = () => {
       const batchResults = await Promise.all(batch.map(async (p: string) => {
         try {
             const pid = playerIds[p]; // Get ID if available
-            const matches = await fetchPlayerHistory(p, 20, pid); // Fetch 20 games for simulator
+            const matches = await fetchPlayerHistory(p, 20, pid, !pid); // useRwtips if no ID
             return analyzeTrends(p, league === 'TODAS' ? 'Global' : league, matches);
         } catch (e) {
             console.error(`Error analyzing player ${p}:`, e);

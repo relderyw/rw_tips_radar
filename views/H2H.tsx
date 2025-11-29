@@ -332,49 +332,37 @@ export const H2H: React.FC = () => {
         setLoadingCompare(true);
         setH2HData(null);
         try {
+            console.log(`[H2H] Starting comparison: ${p1} vs ${p2} in ${l}`);
+            
+            // Fetch H2H data (will use Green365 or rwtips automatically based on availability)
             const h2h = await fetchH2H(p1, p2, l);
             setH2HData(h2h);
 
-            // OPTIMIZATION: Use the data already returned by fetchH2H
-            if (h2h?.player1_stats && h2h?.player2_stats) {
-                const isNormalized = (games: any[]) => games.length > 0 && games[0].score_home !== undefined;
-
-                if (h2h.player1_stats.games && isNormalized(h2h.player1_stats.games)) {
-                     setP1Matches(h2h.player1_stats.games);
-                     setP2Matches(h2h.player2_stats.games);
-                } else {
-                    // Fallback: Helper to normalize Adriatic games (Green365 structure)
-                    const normalizeAdriaticGames = (games: any[], playerName: string): HistoryMatch[] => {
-                        return games.map((g: any) => {
-                             const [hScore, aScore] = (g.score || "0-0").split('-').map(Number);
-                             const [htH, htA] = (g.scoreHT || "0-0").split('-').map(Number);
-                             return {
-                                 home_player: g.home.includes('(') ? g.home.split('(')[1].replace(')', '') : g.home,
-                                 away_player: g.away.includes('(') ? g.away.split('(')[1].replace(')', '') : g.away,
-                                 score_home: hScore,
-                                 score_away: aScore,
-                                 halftime_score_home: htH,
-                                 halftime_score_away: htA,
-                                 data_realizacao: g.date ? new Date(g.timestamp * 1000).toISOString() : new Date().toISOString(),
-                                 league_name: l
-                             };
-                        });
-                    };
-
-                    if (h2h.player1_stats.games) setP1Matches(normalizeAdriaticGames(h2h.player1_stats.games, p1));
-                    if (h2h.player2_stats.games) setP2Matches(normalizeAdriaticGames(h2h.player2_stats.games, p2));
-                }
+            // Check if H2H returned individual player stats
+            if (h2h?.player1_stats?.games && h2h.player1_stats.games.length > 0 && 
+                h2h?.player2_stats?.games && h2h.player2_stats.games.length > 0) {
+                
+                console.log(`[H2H] Using player stats from H2H response`);
+                setP1Matches(h2h.player1_stats.games);
+                setP2Matches(h2h.player2_stats.games);
             } else {
-                // Standard flow for other leagues
+                // Fetch individual player history separately
+                console.log(`[H2H] Fetching individual player histories...`);
                 const [p1Hist, p2Hist] = await Promise.all([
-                    fetchPlayerHistory(p1, 20),
-                    fetchPlayerHistory(p2, 20)
+                    fetchPlayerHistory(p1, 20, undefined, true), // useRwtips = true
+                    fetchPlayerHistory(p2, 20, undefined, true)  // useRwtips = true
                 ]);
+                
+                console.log(`[H2H] Got ${p1Hist.length} matches for ${p1}, ${p2Hist.length} matches for ${p2}`);
                 setP1Matches(p1Hist);
                 setP2Matches(p2Hist);
             }
-        } catch (e) { console.error(e); } 
-        finally { setLoadingCompare(false); }
+        } catch (e) { 
+            console.error('[H2H] Error in handleCompare:', e); 
+        } 
+        finally { 
+            setLoadingCompare(false); 
+        }
     };
 
     const computedStats = useMemo(() => {
