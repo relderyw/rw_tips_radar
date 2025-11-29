@@ -331,32 +331,28 @@ export const H2H: React.FC = () => {
         if(!p1 || !p2 || p1 === p2) return;
         setLoadingCompare(true);
         setH2HData(null);
+        setP1Matches([]);
+        setP2Matches([]);
+        
         try {
             console.log(`[H2H] Starting comparison: ${p1} vs ${p2} in ${l}`);
             
             // Fetch H2H data (will use Green365 or rwtips automatically based on availability)
             const h2h = await fetchH2H(p1, p2, l);
+            console.log(`[H2H] H2H data received:`, h2h ? 'OK' : 'NULL');
             setH2HData(h2h);
 
-            // Check if H2H returned individual player stats
-            if (h2h?.player1_stats?.games && h2h.player1_stats.games.length > 0 && 
-                h2h?.player2_stats?.games && h2h.player2_stats.games.length > 0) {
-                
-                console.log(`[H2H] Using player stats from H2H response`);
-                setP1Matches(h2h.player1_stats.games);
-                setP2Matches(h2h.player2_stats.games);
-            } else {
-                // Fetch individual player history separately
-                console.log(`[H2H] Fetching individual player histories...`);
-                const [p1Hist, p2Hist] = await Promise.all([
-                    fetchPlayerHistory(p1, 20, undefined, true), // useRwtips = true
-                    fetchPlayerHistory(p2, 20, undefined, true)  // useRwtips = true
-                ]);
-                
-                console.log(`[H2H] Got ${p1Hist.length} matches for ${p1}, ${p2Hist.length} matches for ${p2}`);
-                setP1Matches(p1Hist);
-                setP2Matches(p2Hist);
-            }
+            // Always fetch individual player history separately to ensure we have data
+            console.log(`[H2H] Fetching individual player histories from rwtips...`);
+            const [p1Hist, p2Hist] = await Promise.all([
+                fetchPlayerHistory(p1, 20, undefined, true), // useRwtips = true
+                fetchPlayerHistory(p2, 20, undefined, true)  // useRwtips = true
+            ]);
+            
+            console.log(`[H2H] Got ${p1Hist.length} matches for ${p1}, ${p2Hist.length} matches for ${p2}`);
+            setP1Matches(p1Hist);
+            setP2Matches(p2Hist);
+            
         } catch (e) { 
             console.error('[H2H] Error in handleCompare:', e); 
         } 
