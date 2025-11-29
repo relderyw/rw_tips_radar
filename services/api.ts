@@ -48,6 +48,16 @@ const normalizeHistoryMatch = (match: any): HistoryMatch => {
 const playerIdMap = new Map<string, number>();
 const leagueIdMap = new Map<string, number>();
 
+// Helper to get player ID from map or return undefined
+export const getPlayerIdFromCache = (playerName: string): number | undefined => {
+    return playerIdMap.get(playerName);
+};
+
+// Helper to check if we have IDs cached
+export const hasPlayerIds = (): boolean => {
+    return playerIdMap.size > 0;
+};
+
 
 
 export const fetchGames = async (): Promise<Game[]> => {
@@ -223,45 +233,57 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
             playerId = playerIdMap.get(player);
         }
 
-        if (!playerId) {
-            console.warn(`No ID found for player ${player}, cannot fetch history from Green365.`);
-            return [];
+        if (playerId) {
+            const period = `${limit}g`;
+            const url = `https://api-v2.green365.com.br/api/v2/analysis/participant/dynamic?sport=esoccer&participantID=${playerId}&participantName=${encodeURIComponent(player)}&period=${period}`;
+            
+            const response = await fetch(url, { 
+                headers: { 
+                    'Accept': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                } 
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                console.log("Player History API Response Structure:", JSON.stringify(Object.keys(data), null, 2));
+                
+                let rawEvents: any[] = [];
+                
+                if (data.info?.sessions?.sessionEvents?.events && Array.isArray(data.info.sessions.sessionEvents.events)) {
+                    rawEvents = data.info.sessions.sessionEvents.events;
+                } else if (data.sessions?.sessionEvents?.events && Array.isArray(data.sessions.sessionEvents.events)) {
+                    rawEvents = data.sessions.sessionEvents.events;
+                } else if (data.sessionEvents?.events && Array.isArray(data.sessionEvents.events)) {
+                    rawEvents = data.sessionEvents.events;
+                }
+
+                console.log(`Player ${player} history events found: ${rawEvents.length}`);
+
+                if (rawEvents.length > 0) {
+                    const result = rawEvents.map(normalizeHistoryMatch);
+                    playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
+                    return result;
+                }
+            }
         }
 
-        const period = `${limit}g`;
-        const url = `https://api-v2.green365.com.br/api/v2/analysis/participant/dynamic?sport=esoccer&participantID=${playerId}&participantName=${encodeURIComponent(player)}&period=${period}`;
+        console.warn(`No ID for player ${player}, searching in recent games...`);
         
-        const response = await fetch(url, { 
-            headers: { 
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            } 
-        });
-        
-        if (!response.ok) return [];
+        const recentGames = await fetchHistoryGames();
+        const playerMatches = recentGames.filter(m => 
+            m.home_player.toLowerCase() === player.toLowerCase() || 
+            m.away_player.toLowerCase() === player.toLowerCase()
+        ).slice(0, limit);
 
-        const data = await response.json();
-        
-        console.log("Player History API Response Structure:", JSON.stringify(Object.keys(data), null, 2));
-        
-        let rawEvents: any[] = [];
-        
-        if (data.info?.sessions?.sessionEvents?.events && Array.isArray(data.info.sessions.sessionEvents.events)) {
-            rawEvents = data.info.sessions.sessionEvents.events;
-        } else if (data.sessions?.sessionEvents?.events && Array.isArray(data.sessions.sessionEvents.events)) {
-            rawEvents = data.sessions.sessionEvents.events;
-        } else if (data.sessionEvents?.events && Array.isArray(data.sessionEvents.events)) {
-            rawEvents = data.sessionEvents.events;
+        if (playerMatches.length > 0) {
+            playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: playerMatches });
+            console.log(`Found ${playerMatches.length} matches for ${player} in recent games`);
+            return playerMatches;
         }
 
-        console.log(`Player ${player} history events found: ${rawEvents.length}`);
-
-        if (rawEvents.length > 0) {
-            const result = rawEvents.map(normalizeHistoryMatch);
-            playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
-            return result;
-        }
-
+        console.warn(`No matches found for player ${player}`);
         return [];
 
     } catch (error) {

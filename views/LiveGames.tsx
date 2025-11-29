@@ -240,13 +240,20 @@ export const LiveGames: React.FC = () => {
     const fetchMissingStats = async (liveGames: LiveGame[]) => {
         const playersToFetch = new Set<string>();
         
+        console.log(`[LiveGames] Processing ${liveGames.length} live games`);
+        
         liveGames.forEach(g => {
             if (g.time_status !== '1' && g.time_status !== 'live') return;
             const p1 = extractPlayerName(g.home.name);
             const p2 = extractPlayerName(g.away.name);
+            
+            console.log(`[LiveGames] Extracted players: ${p1} vs ${p2} (status: ${g.time_status})`);
+            
             if (!playerStatsCache[p1]) playersToFetch.add(p1);
             if (!playerStatsCache[p2]) playersToFetch.add(p2);
         });
+
+        console.log(`[LiveGames] Players to fetch: ${Array.from(playersToFetch).join(', ')}`);
 
         if (playersToFetch.size === 0) return;
 
@@ -257,19 +264,29 @@ export const LiveGames: React.FC = () => {
             const batch = queue.slice(i, i + BATCH_SIZE);
             await Promise.all(batch.map(async (player) => {
                 try {
+                    console.log(`[LiveGames] Fetching history for ${player}...`);
                     const history = await fetchPlayerHistory(player, 10);
+                    console.log(`[LiveGames] Got ${history.length} matches for ${player}`);
+                    
                     const stats = calculateHistoryPlayerStats(history, player, 10);
                     if (stats) {
+                        console.log(`[LiveGames] Calculated stats for ${player}:`, stats);
                         setPlayerStatsCache(prev => ({ ...prev, [player]: stats }));
+                    } else {
+                        console.warn(`[LiveGames] No stats calculated for ${player}`);
                     }
-                } catch (e) { console.warn(`Failed stats for ${player}`, e); }
+                } catch (e) { 
+                    console.error(`[LiveGames] Failed stats for ${player}:`, e); 
+                }
             }));
         }
     };
 
     const loadLive = async () => {
         if (isFirstLoad.current) setLoading(true);
+        console.log('[LiveGames] Loading live games...');
         const data = await fetchLiveGames();
+        console.log(`[LiveGames] Received ${data.length} live games`);
         
         data.forEach(game => {
             const prev = previousScores.current[game.id];
