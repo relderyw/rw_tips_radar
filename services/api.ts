@@ -12,9 +12,16 @@ const normalizeHistoryMatch = (match: any): HistoryMatch => {
     // Check if it's the new Green365 structure
     if (match.sport === 'esoccer' && match.score && match.home?.name) {
         // Capture IDs for future use (Critical for H2H and Analysis)
-        if (match.home?.id && match.home?.name) playerIdMap.set(match.home.name, match.home.id);
-        if (match.away?.id && match.away?.name) playerIdMap.set(match.away.name, match.away.id);
-        if (match.competition?.id && match.competition?.name) leagueIdMap.set(match.competition.name, match.competition.id);
+        // IMPORTANT: Store names in lowercase for case-insensitive lookup
+        if (match.home?.id && match.home?.name) {
+            playerIdMap.set(match.home.name.toLowerCase(), match.home.id);
+        }
+        if (match.away?.id && match.away?.name) {
+            playerIdMap.set(match.away.name.toLowerCase(), match.away.id);
+        }
+        if (match.competition?.id && match.competition?.name) {
+            leagueIdMap.set(match.competition.name, match.competition.id);
+        }
 
         return {
             home_player: match.home.name,
@@ -50,7 +57,7 @@ const leagueIdMap = new Map<string, number>();
 
 // Helper to get player ID from map or return undefined
 export const getPlayerIdFromCache = (playerName: string): number | undefined => {
-    return playerIdMap.get(playerName);
+    return playerIdMap.get(playerName.toLowerCase());
 };
 
 // Helper to check if we have IDs cached
@@ -101,8 +108,8 @@ export const fetchGames = async (): Promise<Game[]> => {
 };
 
 export const fetchH2H = async (player1: string, player2: string, league: string): Promise<H2HResponse | null> => {
-  const p1Id = playerIdMap.get(player1);
-  const p2Id = playerIdMap.get(player2);
+  const p1Id = playerIdMap.get(player1.toLowerCase());
+  const p2Id = playerIdMap.get(player2.toLowerCase());
   const lId = leagueIdMap.get(league);
 
   if (!p1Id || !p2Id || !lId) {
@@ -219,23 +226,26 @@ const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
 const playerHistoryCache = new Map<string, { timestamp: number, data: HistoryMatch[] }>();
 
 export const fetchPlayerHistory = async (player: string, limit: number = 20, playerId?: number): Promise<HistoryMatch[]> => {
-    const cacheKey = `${player}-${playerId || 'noid'}-${limit}`;
+    const cacheKey = `${player.toLowerCase()}-${playerId || 'noid'}-${limit}`;
     
     if (playerHistoryCache.has(cacheKey)) {
         const cached = playerHistoryCache.get(cacheKey)!;
         if (Date.now() - cached.timestamp < CACHE_TTL) {
+            console.log(`[Cache Hit] Returning cached data for ${player}`);
             return cached.data;
         }
     }
 
     try {
         if (!playerId) {
-            playerId = playerIdMap.get(player);
+            playerId = playerIdMap.get(player.toLowerCase());
         }
 
         if (playerId) {
             const period = `${limit}g`;
             const url = `https://api-v2.green365.com.br/api/v2/analysis/participant/dynamic?sport=esoccer&participantID=${playerId}&participantName=${encodeURIComponent(player)}&period=${period}`;
+            
+            console.log(`[API Call] Fetching history for ${player} (ID: ${playerId})...`);
             
             const response = await fetch(url, { 
                 headers: { 
@@ -266,12 +276,16 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
                     playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
                     return result;
                 }
+            } else {
+                console.warn(`[API Error] HTTP ${response.status} for player ${player}`);
             }
         }
 
-        console.warn(`No ID for player ${player}, searching in recent games...`);
+        console.warn(`[Fallback] No ID for player ${player}, searching in recent games...`);
         
         const recentGames = await fetchHistoryGames();
+        console.log(`[Fallback] Searching ${player} in ${recentGames.length} recent games...`);
+        
         const playerMatches = recentGames.filter(m => 
             m.home_player.toLowerCase() === player.toLowerCase() || 
             m.away_player.toLowerCase() === player.toLowerCase()
@@ -279,15 +293,15 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
 
         if (playerMatches.length > 0) {
             playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: playerMatches });
-            console.log(`Found ${playerMatches.length} matches for ${player} in recent games`);
+            console.log(`[Fallback Success] Found ${playerMatches.length} matches for ${player} in recent games`);
             return playerMatches;
         }
 
-        console.warn(`No matches found for player ${player}`);
+        console.warn(`[Fallback Failed] No matches found for player ${player}`);
         return [];
 
     } catch (error) {
-        console.error(`Error fetching specific history for player ${player} (ID: ${playerId}):`, error);
+        console.error(`[Error] Error fetching specific history for player ${player} (ID: ${playerId}):`, error);
         return [];
     }
 };
