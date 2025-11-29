@@ -18,6 +18,11 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const normalizeHistoryMatch = (match: any): HistoryMatch => {
     // Check if it's the new Green365 structure
     if (match.sport === 'esoccer' && match.score && match.home?.name) {
+        // Capture IDs for future use (Critical for H2H and Analysis)
+        if (match.home?.id && match.home?.name) playerIdMap.set(match.home.name, match.home.id);
+        if (match.away?.id && match.away?.name) playerIdMap.set(match.away.name, match.away.id);
+        if (match.competition?.id && match.competition?.name) leagueIdMap.set(match.competition.name, match.competition.id);
+
         return {
             home_player: match.home.name,
             away_player: match.away.name,
@@ -255,107 +260,82 @@ export const fetchGames = async (): Promise<Game[]> => {
 };
 
 export const fetchH2H = async (player1: string, player2: string, league: string): Promise<H2HResponse | null> => {
-  const tryFetch = async (url: string) => {
-      const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      return await resp.json();
-  };
+  // Try to get IDs from cache
+  const p1Id = playerIdMap.get(player1);
+  const p2Id = playerIdMap.get(player2);
+  const lId = leagueIdMap.get(league);
 
-  // STRATEGY: Check for Adriatic League
-  if (league.includes('Adriatic') || league.includes('10 mins play')) {
-      // TRY CAVEIRA ANALYSIS FIRST (If we have IDs)
-      const p1Id = playerIdMap.get(player1);
-      const p2Id = playerIdMap.get(player2);
-      const lId = leagueIdMap.get(league);
+  // If we don't have IDs, we might fail with the new API. 
+  // However, we can try to proceed if we have at least some info or fallback?
+  // The new API REQUIRES IDs.
+  
+  if (!p1Id || !p2Id || !lId) {
+      console.warn(`Missing IDs for H2H: ${player1}(${p1Id}) vs ${player2}(${p2Id}) in ${league}(${lId})`);
+      // We could try to search for the player/league here if we had a search endpoint, 
+      // but for now we rely on the cache being populated by fetchHistoryGames.
+      // Fallback to Caveira if possible or return null?
+      // Let's try Caveira as fallback if IDs exist there (shared map)
+  }
 
-      if (p1Id && p2Id && lId) {
-          const analysis = await fetchCaveiraAnalysis(p1Id, p2Id, lId);
-          if (analysis) return analysis;
-      }
-
-      // FALLBACK TO GREEN365 (Old Logic)
-      const url = `https://api.green365.com.br/api/e-soccer/event/stats?homeID=null&awayID=null&home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&league=null&eventID=0&period=last_30`;
+  // STRATEGY: Use New Green365 H2H API if IDs are available
+  if (p1Id && p2Id && lId) {
+      const url = `https://api-v2.green365.com.br/api/v2/analysis/sport/dynamic?type=h2h&sport=esoccer&status=manual&competitionID=${lId}&home=${encodeURIComponent(player1)}&away=${encodeURIComponent(player2)}&homeID=${p1Id}&awayID=${p2Id}&period=50g`;
       
       try {
-          const data = await tryFetch(url);
-          
-          if (data && data.gameMutualInformation && Array.isArray(data.gameMutualInformation.lastGames)) {
-              const rawMatches = data.gameMutualInformation.lastGames;
+          const response = await fetch(url, {
+              headers: {
+                  'Accept': 'application/json',
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+              }
+          });
+
+          if (response.ok) {
+              const data = await response.json();
               
-              const matches: HistoryMatch[] = rawMatches.map((m: any) => {
-                  const [homeScore, awayScore] = (m.score || "0-0").split('-').map(Number);
-                  const [htHome, htAway] = (m.scoreHT || "0-0").split('-').map(Number);
+              if (data.headToHeadEvents && Array.isArray(data.headToHeadEvents)) {
+                  const matches = data.headToHeadEvents.map(normalizeHistoryMatch);
+                  const p1Matches = (data.homeEvents || []).map(normalizeHistoryMatch);
+                  const p2Matches = (data.awayEvents || []).map(normalizeHistoryMatch);
+
+                  // Calculate stats
+                  let p1Wins = 0, p2Wins = 0, draws = 0;
+                  matches.forEach(m => {
+                      if (m.score_home === m.score_away) draws++;
+                      else if (m.home_player === player1) { // Assuming name match works, or use ID check if available in normalized
+                           if (m.score_home > m.score_away) p1Wins++; else p2Wins++;
+                      } else {
+                           if (m.score_away > m.score_home) p1Wins++; else p2Wins++;
+                      }
+                  });
                   
+                  const total = matches.length;
+
                   return {
-                      home_player: m.home.includes('(') ? m.home.split('(')[1].replace(')', '') : m.home, // Extract name from "Team (Player)"
-                      away_player: m.away.includes('(') ? m.away.split('(')[1].replace(')', '') : m.away,
-                      score_home: homeScore,
-                      score_away: awayScore,
-                      halftime_score_home: htHome,
-                      halftime_score_away: htAway,
-                      data_realizacao: m.date ? new Date(m.timestamp * 1000).toISOString() : new Date().toISOString(),
-                      home_team: m.home.includes('(') ? m.home.split('(')[0].trim() : undefined,
-                      away_team: m.away.includes('(') ? m.away.split('(')[0].trim() : undefined
+                      total_matches: total,
+                      player1_wins: p1Wins,
+                      player2_wins: p2Wins,
+                      draws: draws,
+                      player1_win_percentage: total > 0 ? (p1Wins / total) * 100 : 0,
+                      player2_win_percentage: total > 0 ? (p2Wins / total) * 100 : 0,
+                      draw_percentage: total > 0 ? (draws / total) * 100 : 0,
+                      matches: matches,
+                      player1_stats: { games: p1Matches },
+                      player2_stats: { games: p2Matches }
                   };
-              });
-
-              // Calculate stats manually since the API structure is different
-              let p1WinsCount = 0;
-              let p2WinsCount = 0;
-              let drawsCount = 0;
-              
-              matches.forEach(m => {
-                  // Normalize names for comparison (case insensitive, trim)
-                  const hName = m.home_player.toLowerCase();
-                  const p1Name = player1.toLowerCase();
-                  
-                  let p1IsHome = hName.includes(p1Name);
-                  
-                  if (m.score_home === m.score_away) {
-                      drawsCount++;
-                  } else if (m.score_home > m.score_away) {
-                      if (p1IsHome) p1WinsCount++; else p2WinsCount++;
-                  } else {
-                      if (p1IsHome) p2WinsCount++; else p1WinsCount++;
-                  }
-              });
-
-              const total = matches.length;
-              
-              return {
-                  total_matches: total,
-                  player1_wins: p1WinsCount,
-                  player2_wins: p2WinsCount,
-                  draws: drawsCount,
-                  player1_win_percentage: total > 0 ? (p1WinsCount / total) * 100 : 0,
-                  player2_win_percentage: total > 0 ? (p2WinsCount / total) * 100 : 0,
-                  draw_percentage: total > 0 ? (drawsCount / total) * 100 : 0,
-                  matches: matches,
-                  player1_stats: data.players?.playerA,
-                  player2_stats: data.players?.playerB
-              };
+              }
           }
       } catch (e) {
-          console.error("Error fetching Adriatic H2H:", e);
-          // Fallback to standard flow if this fails
+          console.error("Green365 H2H Error:", e);
       }
   }
 
-  const baseUrl = `${H2H_API_URL}/${encodeURIComponent(player1)}/${encodeURIComponent(player2)}?page=1&limit=30&league=${encodeURIComponent(league)}`;
-
-  try {
-      const data = await tryFetch(baseUrl);
-      
-      // Normalize matches inside H2H response to ensure stats are correct
-      if (data && data.matches && Array.isArray(data.matches)) {
-          data.matches = data.matches.map(normalizeHistoryMatch);
-      }
-      
-      return data;
-  } catch (error) {
-      console.error("H2H Fetch Error", error);
-      return null;
+  // Fallback to Caveira Analysis if Green365 failed or IDs missing (but Caveira also needs IDs...)
+  if (p1Id && p2Id && lId) {
+      const analysis = await fetchCaveiraAnalysis(p1Id, p2Id, lId);
+      if (analysis) return analysis;
   }
+
+  return null;
 };
 
 // const HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas'; // Old API
@@ -364,32 +344,29 @@ const HISTORY_API_URL = 'https://api-v2.green365.com.br/api/v2/sport-events'; //
 
 export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     try {
-        // STRATEGY: Fetch from BOTH APIs to ensure we have:
-        // 1. Correct casing/names for Standard Leagues (from RWTips)
-        // 2. Adriatic League data (from Green365)
+        // Fetch from Green365 API - 5 pages as requested
+        const pages = Array.from({ length: 5 }, (_, i) => i + 1); // Fetch 5 pages
         
-        const pages = Array.from({ length: 10 }, (_, i) => i + 1); // Fetch 10 pages (1000 games)
-        
-        // 1. Fetch from RWTips (Old API) - Source of Truth for Standard Leagues
-        const rwTipsPromises = pages.map(page => 
-            fetch(`${CORS_PROXY}${RWTIPS_HISTORY_URL}?page=${page}&limit=100`, { 
-                headers: { 'Accept': 'application/json' } 
+        // Fetch from Green365 API
+        const green365Promises = pages.map(page => 
+            fetch(`${HISTORY_API_URL}?page=${page}&limit=24&sport=esoccer&status=ended`, { 
+                headers: { 
+                    'Accept': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+                } 
             }).then(res => {
-                if (!res.ok) console.error(`RWTips Fetch Error Page ${page}:`, res.status);
+                if (!res.ok) console.error(`Green365 Fetch Error Page ${page}:`, res.status);
                 return res.ok ? res.json() : null;
             }).catch(err => {
-                console.error(`RWTips Fetch Failed Page ${page}:`, err);
+                console.error(`Green365 Fetch Failed Page ${page}:`, err);
                 return null;
             })
         );
 
-        // 2. Fetch from Green365 (REMOVED to avoid duplicates with Caveira)
-        // const green365Promises = ...
-
-        // 3. Fetch from Caveira API (New Source)
+        // Fetch from Caveira API (Additional Source)
         const caveiraPromise = fetchCaveiraHistory();
 
-        const results = await Promise.all([...rwTipsPromises, caveiraPromise]);
+        const results = await Promise.all([...green365Promises, caveiraPromise]);
         let allMatches: any[] = [];
 
         // Handle Caveira results separately as they are already normalized
@@ -397,18 +374,18 @@ export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
         
         results.forEach(data => {
             if (data) {
-                // RWTips structure
-                if (data.partidas && Array.isArray(data.partidas)) allMatches = [...allMatches, ...data.partidas];
+                // Green365 structure - items array
+                if (data.items && Array.isArray(data.items)) allMatches = [...allMatches, ...data.items];
                 // Fallbacks
                 else if (data.data && Array.isArray(data.data)) allMatches = [...allMatches, ...data.data];
                 else if (Array.isArray(data)) allMatches = [...allMatches, ...data];
             }
         });
 
-        const normalizedStandard = allMatches.map(normalizeHistoryMatch);
+        const normalizedGreen365 = allMatches.map(normalizeHistoryMatch);
         
         // Merge with Caveira matches
-        return [...normalizedStandard, ...(Array.isArray(caveiraMatches) ? caveiraMatches : [])];
+        return [...normalizedGreen365, ...(Array.isArray(caveiraMatches) ? caveiraMatches : [])];
     } catch (error) {
         console.error("Error fetching history games:", error);
         return [];
@@ -426,32 +403,32 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
     if (playerHistoryCache.has(cacheKey)) {
         const cached = playerHistoryCache.get(cacheKey)!;
         if (Date.now() - cached.timestamp < CACHE_TTL) {
-            // console.log(`Cache hit for ${player}`);
             return cached.data;
         }
     }
 
     try {
-        // STRATEGY 1: If we have a Player ID, use the Analysis API (Required for Adriatic)
+        // Try to find ID in map if not provided
+        if (!playerId) {
+            playerId = playerIdMap.get(player);
+        }
+
         if (playerId) {
-            const url = `https://api-v2.green365.com.br/api/v2/analysis/participant?sport=esoccer&participantID=${playerId}&participantName=${encodeURIComponent(player)}`;
-            const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+            // Use New Green365 API
+            const period = `${limit}g`; // e.g. "20g"
+            const url = `https://api-v2.green365.com.br/api/v2/analysis/participant/dynamic?sport=esoccer&participantID=${playerId}&participantName=${encodeURIComponent(player)}&period=${period}`;
+            
+            const response = await fetch(url, { 
+                headers: { 
+                    'Accept': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+                } 
+            });
             
             if (response.ok) {
                 const data = await response.json();
-                // The structure is: sessions -> sessionEvents -> events
-                // We need to find the 'events' array inside sessionEvents
-                // Based on user sample: data.sessions.sessionEvents.events
                 
-                // However, the user sample showed:
-                // sessions: { ... }
-                // sessionEvents: { category: "events", events: [...] }
-                // It seems 'sessionEvents' might be at the root or inside sessions?
-                // Let's try to find 'events' array recursively or check specific paths.
-                
-                // User sample:
-                // { sport: "esoccer", sessions: {...}, sessionEvents: { category: "events", events: [...] } }
-                
+                // Structure: sessionEvents.events
                 let rawEvents: any[] = [];
                 
                 if (data.sessionEvents && Array.isArray(data.sessionEvents.events)) {
@@ -461,31 +438,21 @@ export const fetchPlayerHistory = async (player: string, limit: number = 20, pla
                 }
 
                 if (rawEvents.length > 0) {
-                    const result = rawEvents.slice(0, limit).map(normalizeHistoryMatch);
+                    const result = rawEvents.map(normalizeHistoryMatch);
                     playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
                     return result;
                 }
             }
         }
 
-        // STRATEGY 2: Fallback to old API (Name based)
-        const url = `${PLAYER_HISTORY_API_URL}?jogador=${encodeURIComponent(player)}&limit=${limit}&page=1`;
-        const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-        const data = await response.json();
-        let rawMatches: any[] = [];
-
-        if (data.partidas && Array.isArray(data.partidas)) rawMatches = data.partidas;
-        else if (Array.isArray(data)) rawMatches = data;
-        else if (data.matches && Array.isArray(data.matches)) rawMatches = data.matches;
-
-        if (rawMatches.length > 0) {
-            const result = rawMatches.map(normalizeHistoryMatch);
-            playerHistoryCache.set(cacheKey, { timestamp: Date.now(), data: result });
-            return result;
+        // Fallback to old API if no ID or new API fails (though old API might be dead/deprecated)
+        // Or just return empty if we strictly want to use the new one.
+        // Given the user request, let's try to stick to the new one, but if we don't have ID, we can't use it.
+        
+        if (!playerId) {
+             console.warn(`No ID found for player ${player}, cannot fetch history from Green365.`);
         }
+
         return [];
 
     } catch (error) {
