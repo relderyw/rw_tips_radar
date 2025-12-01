@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { fetchH2H, fetchHistoryGames, fetchPlayerHistory } from '../services/api';
+import { fetchH2H, fetchPlayerHistory } from '../services/api-simple';
 import { H2HResponse, HistoryMatch, HistoryPlayerStats, LeagueStats, Projection } from '../types';
-import { calculateH2HStats, calculateHistoryPlayerStats, calculateLeagueStatsFromHistory, generateProjections } from '../utils/stats';
+import { calculateH2HStats, calculateHistoryPlayerStats, generateProjections } from '../utils/stats';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Swords, AlertCircle, RefreshCw, BrainCircuit, Target, Scale, ChevronDown, Search, X, Zap } from 'lucide-react';
@@ -335,26 +335,29 @@ export const H2H: React.FC = () => {
         setP2Matches([]);
         
         try {
-            console.log(`[H2H] Starting comparison: ${p1} vs ${p2} in ${l}`);
+            console.log(`[H2H] Comparing: ${p1} vs ${p2}`);
             
-            // Fetch H2H data (will use Green365 or rwtips automatically based on availability)
-            const h2h = await fetchH2H(p1, p2, l);
-            console.log(`[H2H] H2H data received:`, h2h ? 'OK' : 'NULL');
-            setH2HData(h2h);
-
-            // Always fetch individual player history separately to ensure we have data
-            console.log(`[H2H] Fetching individual player histories from rwtips...`);
-            const [p1Hist, p2Hist] = await Promise.all([
-                fetchPlayerHistory(p1, 20, undefined, true), // useRwtips = true
-                fetchPlayerHistory(p2, 20, undefined, true)  // useRwtips = true
+            // Fetch H2H and individual histories in parallel
+            const [h2h, p1Hist, p2Hist] = await Promise.all([
+                fetchH2H(p1, p2),
+                fetchPlayerHistory(p1, 20),
+                fetchPlayerHistory(p2, 20)
             ]);
             
-            console.log(`[H2H] Got ${p1Hist.length} matches for ${p1}, ${p2Hist.length} matches for ${p2}`);
+            console.log(`[H2H] Data loaded successfully`);
+            setH2HData(h2h);
             setP1Matches(p1Hist);
             setP2Matches(p2Hist);
             
-        } catch (e) { 
-            console.error('[H2H] Error in handleCompare:', e); 
+        } catch (error: any) { 
+            console.error('[H2H] Error:', error);
+            
+            // Show maintenance message
+            if (error.message === 'MAINTENANCE') {
+                alert('🔧 Sistema em manutenção. Por favor, tente novamente em alguns minutos.');
+            } else {
+                alert('❌ Erro ao carregar dados. Verifique sua conexão e tente novamente.');
+            }
         } 
         finally { 
             setLoadingCompare(false); 
