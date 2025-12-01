@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { fetchH2H, fetchPlayerHistory } from '../services/api-simple';
+import { fetchH2H, fetchPlayerHistory, fetchHistoryGames } from '../services/api';
 import { H2HResponse, HistoryMatch, HistoryPlayerStats, LeagueStats, Projection } from '../types';
-import { calculateH2HStats, calculateHistoryPlayerStats, generateProjections } from '../utils/stats';
+import { calculateH2HStats, calculateHistoryPlayerStats, generateProjections, calculateLeagueStatsFromHistory } from '../utils/stats';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Swords, AlertCircle, RefreshCw, BrainCircuit, Target, Scale, ChevronDown, Search, X, Zap } from 'lucide-react';
@@ -286,6 +286,7 @@ export const H2H: React.FC = () => {
     const [p1Matches, setP1Matches] = useState<HistoryMatch[]>([]);
     const [p2Matches, setP2Matches] = useState<HistoryMatch[]>([]);
     const [loadingCompare, setLoadingCompare] = useState(false);
+    const [maintenance, setMaintenance] = useState(false);
     
     const [searchParams] = useSearchParams();
     const hasAutoTriggered = useRef(false);
@@ -293,9 +294,23 @@ export const H2H: React.FC = () => {
     useEffect(() => {
         const load = async () => {
             setLoadingHistory(true);
-            const matches = await fetchHistoryGames();
-            if (matches && matches.length > 0) setHistoryMatches(matches);
-            setLoadingHistory(false);
+            setMaintenance(false);
+            try {
+                const matches = await fetchHistoryGames();
+                if (matches && matches.length > 0) {
+                    setHistoryMatches(matches);
+                } else {
+                    // If no matches returned but no error thrown, it might be empty or issue
+                    // But if fetchHistoryGames throws MAINTENANCE, it goes to catch
+                }
+            } catch (error: any) {
+                console.error("Error loading history:", error);
+                if (error.message === 'MAINTENANCE') {
+                    setMaintenance(true);
+                }
+            } finally {
+                setLoadingHistory(false);
+            }
         };
         load();
     }, []);
@@ -354,7 +369,7 @@ export const H2H: React.FC = () => {
             
             // Show maintenance message
             if (error.message === 'MAINTENANCE') {
-                alert('🔧 Sistema em manutenção. Por favor, tente novamente em alguns minutos.');
+                setMaintenance(true);
             } else {
                 alert('❌ Erro ao carregar dados. Verifique sua conexão e tente novamente.');
             }
@@ -388,6 +403,16 @@ export const H2H: React.FC = () => {
 
     return (
         <div className="space-y-6 animate-fade-in max-w-7xl mx-auto">
+            {maintenance && (
+                <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 flex items-center gap-3 text-red-500 animate-pulse">
+                    <AlertCircle size={24} />
+                    <div>
+                        <h3 className="font-bold text-sm uppercase">Sistema em Manutenção</h3>
+                        <p className="text-xs opacity-80">Não foi possível carregar os dados. A API pode estar indisponível no momento.</p>
+                    </div>
+                </div>
+            )}
+
             {/* 1. Control Panel */}
             <Card className="bg-surface/50 border-white/5 p-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
