@@ -149,7 +149,7 @@ const LiveGameCard: React.FC<{
                         <div className="text-[10px] text-textMuted truncate">{homeTeam}</div>
                     </div>
                     
-                    <div className={`font-mono font-black text-2xl px-3 ${isFlashing ? 'text-green-400 scale-110' : 'text-white'} transition-all`}>
+                    <div className={`font-mono font-black text-4xl md:text-5xl px-4 tracking-wider ${isFlashing ? 'text-green-400 scale-110' : 'text-white'} transition-all`}>
                         {game.ss}
                     </div>
 
@@ -175,54 +175,54 @@ const LiveGameCard: React.FC<{
                     <div className="space-y-2">
                         
                         {/* 1. Averages (Always Show) */}
-                        <div className="flex justify-between items-center bg-black/20 rounded px-2 py-1.5">
-                            <span className={`text-xs font-mono font-bold ${stats.p1.avgGoalsFT >= 2.7 ? 'text-green-400' : 'text-textMuted'}`}>
+                        <div className="flex justify-between items-center bg-gradient-to-r from-surfaceHighlight/30 to-surface/30 rounded-lg px-3 py-2 border border-white/10">
+                            <span className={`text-sm font-mono font-bold px-2 py-0.5 rounded ${stats.p1.avgGoalsFT >= 2.7 ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-textMuted'}`}>
                                 {stats.p1.avgGoalsFT}
                             </span>
-                            <span className="text-[9px] uppercase text-textMuted font-bold tracking-widest">Média Gols FT</span>
-                            <span className={`text-xs font-mono font-bold ${stats.p2.avgGoalsFT >= 2.7 ? 'text-green-400' : 'text-textMuted'}`}>
+                            <span className="text-[10px] uppercase text-textMuted font-bold tracking-widest">MÉDIA GOLS FT</span>
+                            <span className={`text-sm font-mono font-bold px-2 py-0.5 rounded ${stats.p2.avgGoalsFT >= 2.7 ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-textMuted'}`}>
                                 {stats.p2.avgGoalsFT}
                             </span>
                         </div>
 
                         
                         {confStats && (
-                            <div className="mt-2 border border-white/10 rounded">
-                                <div className="px-3 py-2 text-[10px] font-black text-white flex justify-between">
-                                    <span>Confronto - 5 Jogos</span>
+                            <div className="mt-3 border border-white/10 rounded-lg bg-surfaceHighlight/20 overflow-hidden">
+                                <div className="px-3 py-2 text-[10px] font-black text-white flex justify-between uppercase tracking-wider bg-black/20 border-b border-white/10">
+                                    <span>Confronto – 5 Jogos</span>
                                     <span className="text-textMuted">MD GOLS {confStats.avgGoalsFT}</span>
                                 </div>
                                 <div className="grid grid-cols-3 text-center text-[10px]">
                                     <div className="p-2 border-t border-white/10">
                                         <div className="text-accent font-black">HT</div>
                                         <div className="mt-2 grid grid-cols-2 gap-1">
-                                            <div className="bg-black/30 px-2 py-1 rounded">+0.5<br/><span className="text-green-400 font-mono">{confStats.ht05Pct}%</span></div>
-                                            <div className="bg-black/30 px-2 py-1 rounded">+1.5<br/><span className="text-yellow-400 font-mono">{confStats.ht15Pct}%</span></div>
-                                            <div className="bg-black/30 px-2 py-1 rounded">+2.5<br/><span className="text-emerald-400 font-mono">{confStats.ht25Pct}%</span></div>
-                                            <div className="bg-black/30 px-2 py-1 rounded">BTTS<br/><span className="text-purple-400 font-mono">{confStats.htBttsPct}%</span></div>
-                                            <div className="bg-black/30 px-2 py-1 rounded">0 x 0<br/><span className="text-red-400 font-mono">{confStats.ht0x0Pct}%</span></div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">+0.5<br/><span className="text-green-400 font-mono">{confStats.ht05Pct}%</span></div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">+1.5<br/><span className="text-yellow-400 font-mono">{confStats.ht15Pct}%</span></div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">+2.5<br/><span className="text-emerald-400 font-mono">{confStats.ht25Pct}%</span></div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">BTTS<br/><span className="text-purple-400 font-mono">{confStats.htBttsPct}%</span></div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">0 x 0<br/><span className="text-red-400 font-mono">{confStats.ht0x0Pct}%</span></div>
                                         </div>
                                     </div>
                                     <div className="p-2 border-t border-l border-white/10">
                                         <div className="text-accent font-black">FT</div>
                                         <div className="mt-2 grid grid-cols-2 gap-1">
-                                            <div className="bg-black/30 px-2 py-1 rounded">+1.5<br/><span className="text-green-400 font-mono">{confStats.ft15Pct}%</span></div>
-                                            <div className="bg-black/30 px-2 py-1 rounded">+2.5<br/><span className="text-emerald-400 font-mono">{confStats.ft25Pct}%</span></div>
-                                            <div className="bg-black/30 px-2 py-1 rounded">+3.5<br/><span className="text-emerald-400 font-mono">{confStats.ft35Pct}%</span></div>
-                                            <div className="bg-black/30 px-2 py-1 rounded">+4.5<br/><span className="text-emerald-400 font-mono">{confStats.ft45Pct}%</span></div>
-                                            <div className="bg-black/30 px-2 py-1 rounded">BTTS<br/><span className="text-purple-400 font-mono">{confStats.ftBttsPct}%</span></div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">+1.5<br/><span className="text-green-400 font-mono">{confStats.ft15Pct}%</span></div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">+2.5<br/><span className="text-emerald-400 font-mono">{confStats.ft25Pct}%</span></div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">+3.5<br/><span className="text-emerald-400 font-mono">{confStats.ft35Pct}%</span></div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">+4.5<br/><span className="text-emerald-400 font-mono">{confStats.ft45Pct}%</span></div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">BTTS<br/><span className="text-purple-400 font-mono">{confStats.ftBttsPct}%</span></div>
                                         </div>
                                     </div>
                                     <div className="p-2 border-t border-l border-white/10">
                                         <div className="text-accent font-black">Previsões</div>
                                         <div className="mt-2 space-y-1">
                                             {confStats.ht15Pct >= 85 && (
-                                                <div className="bg-black/30 px-2 py-1 rounded">+1.5 HT <span className="text-yellow-400 font-mono">{confStats.ht15Pct}%</span></div>
+                                                <div className="bg-black/25 px-2 py-1 rounded">+1.5 HT <span className="text-yellow-400 font-mono">{confStats.ht15Pct}%</span></div>
                                             )}
                                             {confStats.ftBttsPct >= 85 && (
-                                                <div className="bg-black/30 px-2 py-1 rounded">BTTS FT <span className="text-purple-400 font-mono">{confStats.ftBttsPct}%</span></div>
+                                                <div className="bg-black/25 px-2 py-1 rounded">BTTS FT <span className="text-purple-400 font-mono">{confStats.ftBttsPct}%</span></div>
                                             )}
-                                            <div className="bg-black/30 px-2 py-1 rounded">{confStats.avgGoalsFT} GOLS</div>
+                                            <div className="bg-black/25 px-2 py-1 rounded">{confStats.avgGoalsFT} GOLS</div>
                                         </div>
                                     </div>
                                 </div>
