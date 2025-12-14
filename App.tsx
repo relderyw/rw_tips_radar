@@ -27,9 +27,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </button>
               <div className="flex items-center gap-4">
                  {loading && <span className="text-accent text-sm animate-pulse">Atualizando dados...</span>}
-                 <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-accent flex items-center justify-center font-bold text-xs">
-                     RW
-                 </div>
               </div>
           </header>
 
