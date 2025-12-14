@@ -208,3 +208,28 @@ export interface LiveGame {
     // Optional computed fields
     matchPotential?: MatchPotential;
 }
+
+// Confrontation Stats Card - Combined metrics from both players
+export interface ConfrontationStats {
+    // HT Metrics (combined averages)
+    ht05Pct: number;      // +0.5 HT
+    ht15Pct: number;      // +1.5 HT
+    ht25Pct: number;      // +2.5 HT
+    htBttsPct: number;    // BTTS HT
+    ht0x0Pct: number;     // 0x0 HT (inverted: 100 - htOver05Pct for each player)
+    
+    // FT Metrics (combined averages)
+    ft15Pct: number;      // +1.5 FT
+    ft25Pct: number;      // +2.5 FT
+    ft35Pct: number;      // +3.5 FT
+    ft45Pct: number;      // +4.5 FT
+    ftBttsPct: number;    // BTTS FT
+    
+    // Averages
+    avgGoalsHT: number;   // MD_GOLS HT
+    avgGoalsFT: number;   // MD_GOLS FT
+    
+    // Individual stats for display
+    p1Stats: HistoryPlayerStats;
+    p2Stats: HistoryPlayerStats;
+}

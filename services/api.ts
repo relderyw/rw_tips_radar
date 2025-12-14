@@ -167,7 +167,7 @@ const HISTORY_API_URL = 'https://rwtips-r943.onrender.com/api/historico/partidas
 export const fetchHistoryGames = async (): Promise<HistoryMatch[]> => {
     try {
         console.log('[fetchHistoryGames] Starting to fetch recent games from RWTips...');
-        const pages = Array.from({ length: 5 }, (_, i) => i + 1);
+        const pages = Array.from({ length: 10 }, (_, i) => i + 1);
         
         const promises = pages.map(page => 
             fetch(`${HISTORY_API_URL}?page=${page}&limit=20`, { 

@@ -1,4 +1,4 @@
-import { Game, ProcessedGame, PlayerMetrics, H2HMatch, HistoryMatch, HistoryPlayerStats, LeagueStats, Projection, PlayerVerdict, MatchPotential } from '../types';
+import { Game, ProcessedGame, PlayerMetrics, H2HMatch, HistoryMatch, HistoryPlayerStats, LeagueStats, Projection, PlayerVerdict, MatchPotential, ConfrontationStats } from '../types';
 
 export const processRawGames = (games: any[]): ProcessedGame[] => {
   return games.map(game => {
@@ -279,4 +279,38 @@ export const generateProjections = (h2hStats: any, p1Stats: HistoryPlayerStats, 
         checkLine('BTTS FT', h2hStats.ft.bttsPct, p1Stats.bttsPct, p2Stats.bttsPct, leagueStats.bttsPct, 70);
     }
     return projections.sort((a, b) => b.probability - a.probability);
+};
+
+// Calculate combined confrontation stats from both players
+export const calculateConfrontationStats = (p1: HistoryPlayerStats, p2: HistoryPlayerStats): ConfrontationStats => {
+    const avg = (a: number, b: number) => Math.round((a + b) / 2);
+    
+    // Calculate 0x0 HT (percentage of games with 0-0 at HT)
+    // This is inverted: if htOver05Pct is 100%, then 0x0 is 0%
+    const p1_0x0 = 100 - p1.htOver05Pct;
+    const p2_0x0 = 100 - p2.htOver05Pct;
+    
+    return {
+        // HT Metrics
+        ht05Pct: avg(p1.htOver05Pct, p2.htOver05Pct),
+        ht15Pct: avg(p1.htOver15Pct, p2.htOver15Pct),
+        ht25Pct: avg(p1.htOver25Pct, p2.htOver25Pct),
+        htBttsPct: avg(p1.htBttsPct, p2.htBttsPct),
+        ht0x0Pct: avg(p1_0x0, p2_0x0),
+        
+        // FT Metrics
+        ft15Pct: avg(p1.ftOver15Pct, p2.ftOver15Pct),
+        ft25Pct: avg(p1.ftOver25Pct, p2.ftOver25Pct),
+        ft35Pct: avg(p1.ftOver35Pct || 0, p2.ftOver35Pct || 0),
+        ft45Pct: 0, // Will be calculated if we add this metric to HistoryPlayerStats
+        ftBttsPct: avg(p1.bttsPct, p2.bttsPct),
+        
+        // Averages
+        avgGoalsHT: Number(((p1.avgGoalsHT + p2.avgGoalsHT) / 2).toFixed(2)),
+        avgGoalsFT: Number(((p1.avgGoalsFT + p2.avgGoalsFT) / 2).toFixed(2)),
+        
+        // Individual stats
+        p1Stats: p1,
+        p2Stats: p2
+    };
 };

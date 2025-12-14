@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { fetchLiveGames, fetchPlayerHistory } from '../services/api';
-import { LiveGame, MatchPotential, HistoryPlayerStats } from '../types';
+import { LiveGame, MatchPotential, HistoryPlayerStats, ConfrontationStats } from '../types';
 import { Card } from '../components/ui/Card';
 import { getLeagueConfig } from '../utils/format';
-import { calculateHistoryPlayerStats, analyzeMatchPotential } from '../utils/stats';
+import { calculateHistoryPlayerStats, analyzeMatchPotential, calculateConfrontationStats } from '../utils/stats';
 import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2, Repeat } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -124,6 +124,7 @@ const LiveGameCard: React.FC<{
         potentialBadge = <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />;
     }
 
+    const confStats = stats ? calculateConfrontationStats(stats.p1, stats.p2) : undefined;
     return (
         <Card className={`border-l-4 p-0 relative overflow-hidden transition-all hover:translate-y-[-2px] ${ringClass} ${bgClass}`} style={{ borderLeftColor: borderColor }}>
             {potentialBadge}
@@ -214,6 +215,48 @@ const LiveGameCard: React.FC<{
                                 <SignalBadge label="BTTS" color="text-purple-300 border-purple-500/30" icon={<Repeat size={10}/>} tooltip="Probabilidade de ambos marcarem (tempo total)." />
                             )}
                         </div>
+                        {confStats && (
+                            <div className="mt-2 border border-white/10 rounded">
+                                <div className="px-3 py-2 text-[10px] font-black text-white flex justify-between">
+                                    <span>Confronto - 5 Jogos</span>
+                                    <span className="text-textMuted">MD GOLS {confStats.avgGoalsFT}</span>
+                                </div>
+                                <div className="grid grid-cols-3 text-center text-[10px]">
+                                    <div className="p-2 border-t border-white/10">
+                                        <div className="text-accent font-black">HT</div>
+                                        <div className="mt-2 grid grid-cols-2 gap-1">
+                                            <div className="bg-black/30 px-2 py-1 rounded">+0.5<br/><span className="text-green-400 font-mono">{confStats.ht05Pct}%</span></div>
+                                            <div className="bg-black/30 px-2 py-1 rounded">+1.5<br/><span className="text-yellow-400 font-mono">{confStats.ht15Pct}%</span></div>
+                                            <div className="bg-black/30 px-2 py-1 rounded">+2.5<br/><span className="text-emerald-400 font-mono">{confStats.ht25Pct}%</span></div>
+                                            <div className="bg-black/30 px-2 py-1 rounded">BTTS<br/><span className="text-purple-400 font-mono">{confStats.htBttsPct}%</span></div>
+                                            <div className="bg-black/30 px-2 py-1 rounded">0 x 0<br/><span className="text-red-400 font-mono">{confStats.ht0x0Pct}%</span></div>
+                                        </div>
+                                    </div>
+                                    <div className="p-2 border-t border-l border-white/10">
+                                        <div className="text-accent font-black">FT</div>
+                                        <div className="mt-2 grid grid-cols-2 gap-1">
+                                            <div className="bg-black/30 px-2 py-1 rounded">+1.5<br/><span className="text-green-400 font-mono">{confStats.ft15Pct}%</span></div>
+                                            <div className="bg-black/30 px-2 py-1 rounded">+2.5<br/><span className="text-emerald-400 font-mono">{confStats.ft25Pct}%</span></div>
+                                            <div className="bg-black/30 px-2 py-1 rounded">+3.5<br/><span className="text-emerald-400 font-mono">{confStats.ft35Pct}%</span></div>
+                                            <div className="bg-black/30 px-2 py-1 rounded">+4.5<br/><span className="text-emerald-400 font-mono">{confStats.ft45Pct}%</span></div>
+                                            <div className="bg-black/30 px-2 py-1 rounded">BTTS<br/><span className="text-purple-400 font-mono">{confStats.ftBttsPct}%</span></div>
+                                        </div>
+                                    </div>
+                                    <div className="p-2 border-t border-l border-white/10">
+                                        <div className="text-accent font-black">Previsões</div>
+                                        <div className="mt-2 space-y-1">
+                                            {confStats.ht15Pct >= 85 && (
+                                                <div className="bg-black/30 px-2 py-1 rounded">+1.5 HT <span className="text-yellow-400 font-mono">{confStats.ht15Pct}%</span></div>
+                                            )}
+                                            {confStats.ftBttsPct >= 85 && (
+                                                <div className="bg-black/30 px-2 py-1 rounded">BTTS FT <span className="text-purple-400 font-mono">{confStats.ftBttsPct}%</span></div>
+                                            )}
+                                            <div className="bg-black/30 px-2 py-1 rounded">{confStats.avgGoalsFT} GOLS</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : null}
             </div>
@@ -265,10 +308,10 @@ export const LiveGames: React.FC = () => {
             await Promise.all(batch.map(async (player) => {
                 try {
                     console.log(`[LiveGames] Fetching history for ${player}...`);
-                    const history = await fetchPlayerHistory(player, 10, undefined, true); // useRwtips = true
+                    const history = await fetchPlayerHistory(player, 10, undefined, true);
                     console.log(`[LiveGames] Got ${history.length} matches for ${player}`);
                     
-                    const stats = calculateHistoryPlayerStats(history, player, 10);
+                    const stats = calculateHistoryPlayerStats(history, player, 5);
                     if (stats) {
                         console.log(`[LiveGames] Calculated stats for ${player}:`, stats);
                         setPlayerStatsCache(prev => ({ ...prev, [player]: stats }));
