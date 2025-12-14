@@ -493,13 +493,6 @@ export const LiveGames: React.FC = () => {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-black text-white flex items-center gap-3">
-                    <div className="relative">
-                        <Radio className="text-red-500" size={32} />
-                        <span className="absolute top-0 right-0 flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                        </span>
-                    </div>
                     Jogos Ao Vivo
                 </h2>
                 <button 
