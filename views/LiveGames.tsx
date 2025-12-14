@@ -493,6 +493,9 @@ export const LiveGames: React.FC = () => {
             {/* Header */}
             <div className="flex justify-between items-center">
                 <h2 className="text-3xl font-black text-white flex items-center gap-3">
+                    <div className="relative">
+                        <Radio className="text-red-500" size={32} />
+                    </div>
                     Jogos Ao Vivo
                 </h2>
                 <button 
