@@ -4,7 +4,7 @@ import { LiveGame, MatchPotential, HistoryPlayerStats, ConfrontationStats } from
 import { Card } from '../components/ui/Card';
 import { getLeagueConfig } from '../utils/format';
 import { calculateHistoryPlayerStats, analyzeMatchPotential, calculateConfrontationStats } from '../utils/stats';
-import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Flame, Zap, Rocket, Loader2, Repeat } from 'lucide-react';
+import { RefreshCw, Radio, Timer, Swords, ArrowRight, X, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // --- Interfaces ---
@@ -185,36 +185,7 @@ const LiveGameCard: React.FC<{
                             </span>
                         </div>
 
-                        {/* 2. Opportunity Signals (Only Show High Value) */}
-                        <div className="flex flex-wrap justify-center gap-2">
-                            {/* Top Badges */}
-                            {potential === 'top_clash' && (
-                                <SignalBadge label="TOP CONFRONTO" color="text-red-400 border-red-500/30" icon={<Flame size={10}/>} tooltip="Confronto excepcional com métricas elevadas em HT, FT e BTTS." />
-                            )}
-                            {potential === 'top_ht' && (
-                                <SignalBadge label="TOP HT" color="text-yellow-400 border-yellow-500/30" icon={<Zap size={10}/>} tooltip="Métricas excepcionais para gols no 1º tempo (HT)." />
-                            )}
-                            {potential === 'top_ft' && (
-                                <SignalBadge label="TOP FT" color="text-emerald-400 border-emerald-500/30" icon={<Rocket size={10}/>} tooltip="Métricas excepcionais para gols no tempo total (FT)." />
-                            )}
-
-                            {/* Individual High Stats (Expanded - Sniper threshold >85%) */}
-                            {(stats.p1.htOver05Pct >= 85 || stats.p2.htOver05Pct >= 85) && (
-                                <SignalBadge label="HT+" color="text-blue-300 border-blue-500/30" tooltip="Probabilidade de pelo menos 1 gol no 1º tempo." />
-                            )}
-                            {(stats.p1.htOver15Pct >= 85 || stats.p2.htOver15Pct >= 85) && (
-                                <SignalBadge label="HT 1.5+" color="text-yellow-300 border-yellow-500/30" icon={<Zap size={10}/>} tooltip="Probabilidade de 2+ gols no 1º tempo." />
-                            )}
-                            {(stats.p1.ftOver25Pct >= 85 || stats.p2.ftOver25Pct >= 85) && (
-                                <SignalBadge label="FT 2.5+" color="text-emerald-300 border-emerald-500/30" icon={<Rocket size={10}/>} tooltip="Probabilidade de 3+ gols no jogo (tempo total)." />
-                            )}
-                            {(stats.p1.ftOver35Pct && stats.p1.ftOver35Pct >= 85) || (stats.p2.ftOver35Pct && stats.p2.ftOver35Pct >= 85) ? (
-                                <SignalBadge label="FT 3.5+" color="text-emerald-400 border-emerald-500/30" icon={<Rocket size={10}/>} tooltip="Probabilidade de 4+ gols no jogo (tempo total)." />
-                            ) : null}
-                            {(stats.p1.bttsPct >= 85 || stats.p2.bttsPct >= 85) && (
-                                <SignalBadge label="BTTS" color="text-purple-300 border-purple-500/30" icon={<Repeat size={10}/>} tooltip="Probabilidade de ambos marcarem (tempo total)." />
-                            )}
-                        </div>
+                        
                         {confStats && (
                             <div className="mt-2 border border-white/10 rounded">
                                 <div className="px-3 py-2 text-[10px] font-black text-white flex justify-between">
