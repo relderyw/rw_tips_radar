@@ -69,6 +69,13 @@ const SignalBadge: React.FC<{ label: string; color: string; icon?: React.ReactNo
     </div>
 );
 
+const MetricBox: React.FC<{ label: string; value: number; color?: string }> = ({ label, value, color }) => (
+    <div className="bg-black/20 px-3 py-2 rounded-lg flex flex-col items-center justify-center gap-1 min-h-[56px]">
+        <div className="text-[11px] font-bold text-textMuted">{label}</div>
+        <div className={`font-mono font-black text-lg ${color ?? 'text-white'}`}>{value}%</div>
+    </div>
+);
+
 const LiveGameCard: React.FC<{ 
     game: LiveGame; 
     leagueColor: string; 
@@ -188,41 +195,37 @@ const LiveGameCard: React.FC<{
                         
                         {confStats && (
                             <div className="mt-3 border border-white/10 rounded-xl bg-surfaceHighlight/20 overflow-hidden">
-                                <div className="px-4 py-2 text-[11px] font-black text-white flex justify-between uppercase tracking-wider bg-black/20 border-b border-white/10">
+                                <div className="px-4 py-2 text-[12px] font-black text-white flex justify-between uppercase tracking-wider bg-black/20 border-b border-white/10">
                                     <span>Confronto – 5 Jogos</span>
                                     <span className="px-2 py-0.5 rounded bg-white/5 text-textMuted font-mono">MD GOLS {confStats.avgGoalsFT}</span>
                                 </div>
-                                <div className="grid grid-cols-3 gap-2 p-2 text-center text-[11px]">
-                                    <div className="p-2 rounded-lg bg-black/10">
-                                        <div className="text-accent font-black text-xs mb-2">HT</div>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg"><div>+0.5</div><span className="text-green-400 font-mono text-sm font-black">{confStats.ht05Pct}%</span></div>
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg"><div>+1.5</div><span className="text-yellow-400 font-mono text-sm font-black">{confStats.ht15Pct}%</span></div>
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg"><div>+2.5</div><span className="text-emerald-400 font-mono text-sm font-black">{confStats.ht25Pct}%</span></div>
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg"><div>BTTS</div><span className="text-purple-400 font-mono text-sm font-black">{confStats.htBttsPct}%</span></div>
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg col-span-2"><div>0 x 0</div><span className="text-red-400 font-mono text-sm font-black">{confStats.ht0x0Pct}%</span></div>
-                                        </div>
+                                <div className="grid grid-cols-3 gap-3 p-3">
+                                    <div className="space-y-2">
+                                        <div className="text-sm font-black text-accent">HT</div>
+                                        <MetricBox label="+0.5" value={confStats.ht05Pct} color="text-green-400" />
+                                        <MetricBox label="+1.5" value={confStats.ht15Pct} color="text-yellow-400" />
+                                        <MetricBox label="+2.5" value={confStats.ht25Pct} color="text-emerald-400" />
+                                        <MetricBox label="BTTS" value={confStats.htBttsPct} color="text-purple-400" />
+                                        <MetricBox label="0 x 0" value={confStats.ht0x0Pct} color="text-red-400" />
                                     </div>
-                                    <div className="p-2 rounded-lg bg-black/10">
-                                        <div className="text-accent font-black text-xs mb-2">FT</div>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg"><div>+1.5</div><span className="text-green-400 font-mono text-sm font-black">{confStats.ft15Pct}%</span></div>
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg"><div>+2.5</div><span className="text-emerald-400 font-mono text-sm font-black">{confStats.ft25Pct}%</span></div>
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg"><div>+3.5</div><span className="text-emerald-400 font-mono text-sm font-black">{confStats.ft35Pct}%</span></div>
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg"><div>+4.5</div><span className="text-emerald-400 font-mono text-sm font-black">{confStats.ft45Pct}%</span></div>
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg col-span-2"><div>BTTS</div><span className="text-purple-400 font-mono text-sm font-black">{confStats.ftBttsPct}%</span></div>
-                                        </div>
+                                    <div className="space-y-2">
+                                        <div className="text-sm font-black text-accent">FT</div>
+                                        <MetricBox label="+1.5" value={confStats.ft15Pct} color="text-green-400" />
+                                        <MetricBox label="+2.5" value={confStats.ft25Pct} color="text-emerald-400" />
+                                        <MetricBox label="+3.5" value={confStats.ft35Pct} color="text-emerald-400" />
+                                        <MetricBox label="BTTS" value={confStats.ftBttsPct} color="text-purple-400" />
                                     </div>
-                                    <div className="p-2 rounded-lg bg-black/10">
-                                        <div className="text-accent font-black text-xs mb-2">Previsões</div>
-                                        <div className="space-y-2">
-                                            {confStats.ht15Pct >= 85 && (
-                                                <div className="bg-black/25 px-3 py-2 rounded-lg">+1.5 HT <span className="text-yellow-400 font-mono text-sm font-black">{confStats.ht15Pct}%</span></div>
-                                            )}
-                                            {confStats.ftBttsPct >= 85 && (
-                                                <div className="bg-black/25 px-3 py-2 rounded-lg">BTTS FT <span className="text-purple-400 font-mono text-sm font-black">{confStats.ftBttsPct}%</span></div>
-                                            )}
-                                            <div className="bg-black/25 px-3 py-2 rounded-lg">{confStats.avgGoalsFT} GOLS</div>
+                                    <div className="space-y-2">
+                                        <div className="text-sm font-black text-accent">Previsões</div>
+                                        {confStats.ht15Pct >= 85 && (
+                                            <MetricBox label="+1.5 HT" value={confStats.ht15Pct} color="text-yellow-400" />
+                                        )}
+                                        {confStats.ftBttsPct >= 85 && (
+                                            <MetricBox label="BTTS FT" value={confStats.ftBttsPct} color="text-purple-400" />
+                                        )}
+                                        <div className="bg-black/20 px-3 py-2 rounded-lg flex items-center justify-center gap-2 min-h-[56px]">
+                                            <span className="text-[11px] font-bold text-textMuted">MD GOLS</span>
+                                            <span className="font-mono font-black text-lg">{confStats.avgGoalsFT}</span>
                                         </div>
                                     </div>
                                 </div>
